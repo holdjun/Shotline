@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # Add project-specific setup and checks below.
+      # Examples:
+      #   - uses: actions/setup-node@v4
+      #   - run: npm test
+      #   - run: cargo test
+      #   - run: go test ./...
+
+      - name: Placeholder
+        run: echo "CI passed — add project-specific checks"
