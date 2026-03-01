@@ -26,6 +26,6 @@ class RawDevelopProcessor(BaseProcessor):
         ev = params.get("ev", 0.0)
         data = image.data
         if ev != 0.0:
-            data = data * (2.0 ** ev)
+            data = data * (2.0**ev)
             data = np.clip(data, 0.0, None).astype(np.float32)
         return image.replace(data=data, metadata={"raw_develop": {"ev": ev}})

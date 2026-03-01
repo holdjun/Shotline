@@ -51,9 +51,7 @@ def test_run_json_output(sample_jpg: Path, tmp_path: Path):
 
 def test_run_with_steps(sample_jpg: Path, tmp_path: Path):
     out = tmp_path / "out.jpg"
-    result = runner.invoke(
-        app, ["run", str(sample_jpg), "-o", str(out), "-s", "white_balance"]
-    )
+    result = runner.invoke(app, ["run", str(sample_jpg), "-o", str(out), "-s", "white_balance"])
     assert result.exit_code == 0
     assert out.exists()
 
