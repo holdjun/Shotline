@@ -17,18 +17,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v5
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv sync --extra dev
 
       - name: Lint
-        run: ruff check src/ tests/
+        run: uv run ruff check src/ tests/
 
       - name: Format check
-        run: ruff format --check src/ tests/
+        run: uv run ruff format --check src/ tests/
 
       - name: Test
-        run: pytest --cov=shotline --cov-report=term-missing
+        run: uv run pytest --cov=shotline --cov-report=term-missing

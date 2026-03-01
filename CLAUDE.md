@@ -24,11 +24,11 @@ docs/                  # Technical docs, architecture, product specs
 ## Common Commands
 
 ```bash
-# Install     — pip install -e ".[dev]"
-# Lint        — ruff check src/ tests/
-# Format      — ruff format src/ tests/
-# Test        — pytest
-# Type check  — mypy src/shotline/
+# Install     — uv sync --extra dev
+# Lint        — uv run ruff check src/ tests/
+# Format      — uv run ruff format src/ tests/
+# Test        — uv run pytest
+# Type check  — uv run mypy src/shotline/
 ```
 
 ## Key Rules
