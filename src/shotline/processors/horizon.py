@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
-
+from shotline.image import ImageData
 from shotline.processor import (
     BaseProcessor,
     ProcessorMeta,
     ProcessorStatus,
-    ProcessResult,
     register_processor,
 )
 
@@ -34,6 +32,5 @@ class HorizonProcessor(BaseProcessor):
         except ImportError:
             return ProcessorStatus.UNAVAILABLE
 
-    def process(self, image: np.ndarray, params: dict[str, Any] | None = None) -> ProcessResult:
-        # Stub: return image unchanged
-        return ProcessResult(image=image, metadata={"stub": True})
+    def process(self, image: ImageData, params: dict[str, Any] | None = None) -> ImageData:
+        return image.replace(metadata={"horizon": {"stub": True}})

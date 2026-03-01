@@ -17,6 +17,7 @@ def test_list_command():
     assert result.exit_code == 0
     assert "RAW Development" in result.output
     assert "AI Denoise" in result.output
+    assert "Tone Map" in result.output
 
 
 def test_list_json():
@@ -24,9 +25,10 @@ def test_list_json():
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert isinstance(data, list)
-    assert len(data) == 8
+    assert len(data) == 9
     names = [p["name"] for p in data]
     assert "raw_develop" in names
+    assert "tone_map" in names
     assert "denoise" in names
 
 
@@ -49,13 +51,14 @@ def test_run_json_output(sample_jpg: Path, tmp_path: Path):
 
 def test_run_with_steps(sample_jpg: Path, tmp_path: Path):
     out = tmp_path / "out.jpg"
-    result = runner.invoke(app, ["run", str(sample_jpg), "-o", str(out), "-s", "white_balance"])
+    result = runner.invoke(
+        app, ["run", str(sample_jpg), "-o", str(out), "-s", "white_balance"]
+    )
     assert result.exit_code == 0
     assert out.exists()
 
 
 def test_run_directory(sample_jpg: Path, tmp_path: Path):
-    # Create a directory with images
     import numpy as np
     from PIL import Image
 

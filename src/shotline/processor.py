@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import abc
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-import numpy as np
+from shotline.image import ImageData
 
 
 class ProcessorStatus(Enum):
@@ -27,18 +27,12 @@ class ProcessorMeta:
     model_id: str | None = None
 
 
-@dataclass
-class ProcessResult:
-    image: np.ndarray  # (H, W, C) float32 [0, 1]
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
 class BaseProcessor(abc.ABC):
     @abc.abstractmethod
     def meta(self) -> ProcessorMeta: ...
 
     @abc.abstractmethod
-    def process(self, image: np.ndarray, params: dict[str, Any] | None = None) -> ProcessResult: ...
+    def process(self, image: ImageData, params: dict[str, Any] | None = None) -> ImageData: ...
 
     def status(self) -> ProcessorStatus:
         return ProcessorStatus.AVAILABLE

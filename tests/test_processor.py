@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import numpy as np
-
 import shotline.processors  # noqa: F401
+from shotline.image import ImageData
 from shotline.processor import (
     BaseProcessor,
     ProcessorMeta,
     ProcessorStatus,
-    ProcessResult,
     get_processor,
     list_processors,
 )
@@ -19,6 +17,7 @@ def test_list_processors_returns_all():
     metas = list_processors()
     names = [m.name for m in metas]
     assert "raw_develop" in names
+    assert "tone_map" in names
     assert "denoise" in names
     assert "horizon" in names
     assert "white_balance" in names
@@ -26,7 +25,7 @@ def test_list_processors_returns_all():
     assert "auto_crop" in names
     assert "super_res" in names
     assert "content_remove" in names
-    assert len(metas) == 8
+    assert len(metas) == 9
 
 
 def test_list_processors_sorted_by_order():
@@ -48,17 +47,33 @@ def test_get_unknown_processor_raises():
         get_processor("nonexistent")
 
 
-def test_raw_develop_stub(sample_image: np.ndarray):
+def test_raw_develop_stub(sample_image: ImageData):
     proc = get_processor("raw_develop")
+    # raw_develop expects "raw" source_format, but test still exercises the code path
     result = proc.process(sample_image)
-    assert isinstance(result, ProcessResult)
-    assert result.image.shape == sample_image.shape
+    assert isinstance(result, ImageData)
+    assert result.data.shape == sample_image.data.shape
 
 
-def test_white_balance_stub(sample_image: np.ndarray):
+def test_white_balance_stub(sample_image: ImageData):
     proc = get_processor("white_balance")
     result = proc.process(sample_image)
-    assert result.image.shape == sample_image.shape
+    assert result.data.shape == sample_image.data.shape
+
+
+def test_tone_map_srgb(sample_image: ImageData):
+    proc = get_processor("tone_map")
+    result = proc.process(sample_image)
+    assert result.is_srgb
+    assert result.data.shape == sample_image.data.shape
+
+
+def test_tone_map_linear(sample_linear_image: ImageData):
+    proc = get_processor("tone_map")
+    result = proc.process(sample_linear_image)
+    assert result.is_srgb
+    assert result.data.min() >= 0.0
+    assert result.data.max() <= 1.0
 
 
 def test_needs_model_processors():

@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
-
+from shotline.image import ImageData
 from shotline.processor import (
     BaseProcessor,
     ProcessorMeta,
     ProcessorStatus,
-    ProcessResult,
     register_processor,
 )
 
@@ -31,5 +29,5 @@ class AutoCropProcessor(BaseProcessor):
     def status(self) -> ProcessorStatus:
         return ProcessorStatus.NEEDS_MODEL
 
-    def process(self, image: np.ndarray, params: dict[str, Any] | None = None) -> ProcessResult:
+    def process(self, image: ImageData, params: dict[str, Any] | None = None) -> ImageData:
         raise NotImplementedError("Auto crop processor not yet implemented")

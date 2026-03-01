@@ -8,5 +8,6 @@ from shotline.processors import (  # noqa: F401
     horizon,
     raw_develop,
     super_res,
+    tone_map,
     white_balance,
 )
