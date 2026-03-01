@@ -1,0 +1,22 @@
+default_steps = [
+    "raw_develop",
+    "denoise",
+    "horizon",
+    "white_balance",
+    "color_grade",
+    "auto_crop",
+]
+
+[output]
+format = "jpg"
+quality = 95
+suffix = "_processed"
+
+[models]
+cache_dir = "~/.cache/shotline/models"
+
+[processor_params.denoise]
+# strength = 0.8
+
+[processor_params.auto_crop]
+# aspect_ratio = "3:2"

@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "shotline"
+version = "0.1.0"
+description = "Photo processing pipeline CLI"
+readme = "README.md"
+requires-python = ">=3.13"
+license = "MIT"
+
+dependencies = [
+    "typer>=0.9",
+    "rich>=13.0",
+    "pydantic>=2.0",
+    "numpy>=1.24",
+    "Pillow>=10.0",
+    "rawpy>=0.19",
+    "pillow-heif>=0.13",
+]
+
+[project.optional-dependencies]
+ai = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+    "opencv-python-headless>=4.8",
+    "ultralytics>=8.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.5",
+]
+all = ["shotline[ai,dev]"]
+
+[project.scripts]
+shotline = "shotline.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shotline"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true

@@ -16,14 +16,17 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
 
-      # Add project-specific setup and checks below.
-      # Examples:
-      #   - uses: actions/setup-node@v4
-      #   - run: npm test
-      #   - run: cargo test
-      #   - run: go test ./...
+      - name: Install dependencies
+        run: uv sync --extra dev
 
-      - name: Placeholder
-        run: echo "CI passed — add project-specific checks"
+      - name: Lint
+        run: uv run ruff check src/ tests/
+
+      - name: Format check
+        run: uv run ruff format --check src/ tests/
+
+      - name: Test
+        run: uv run pytest --cov=shotline --cov-report=term-missing
