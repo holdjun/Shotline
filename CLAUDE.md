@@ -13,22 +13,22 @@ A language-agnostic template for AI-driven development workflows. 100% AI-runnab
 ## Directory Structure
 
 ```
-docs/                  # Technical docs, architecture, product specs, conventions
+src/shotline/          # Main package source
+src/shotline/processors/  # Individual processing step modules
+tests/                 # Test suite
+docs/                  # Technical docs, architecture, product specs
 .claude/               # Claude Code settings, skills
 .github/               # CI workflows, PR/issue templates, Dependabot
 ```
 
-Update this section when the project structure is established.
-
 ## Common Commands
 
-Define project-specific commands here when the tech stack is chosen:
-
 ```bash
-# Build       —
-# Lint        —
-# Test        —
-# Format      —
+# Install     — pip install -e ".[dev]"
+# Lint        — ruff check src/ tests/
+# Format      — ruff format src/ tests/
+# Test        — pytest
+# Type check  — mypy src/shotline/
 ```
 
 ## Key Rules

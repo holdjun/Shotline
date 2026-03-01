@@ -19,3 +19,25 @@ Thumbs.db
 
 # Debug logs
 *.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Virtual environments
+.venv/
+venv/
+
+# AI Models (large binaries)
+*.pth
+*.pt
+*.onnx
