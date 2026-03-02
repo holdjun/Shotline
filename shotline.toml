@@ -1,5 +1,6 @@
 default_steps = [
     "raw_develop",
+    "tone_map",
     "denoise",
     "horizon",
     "white_balance",
@@ -20,3 +21,6 @@ cache_dir = "~/.cache/shotline/models"
 
 [processor_params.auto_crop]
 # aspect_ratio = "3:2"
+
+[processor_params.raw_develop]
+# ev = 0.0

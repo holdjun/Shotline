@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from shotline.image import Encoding, ImageData
 from shotline.io import (
     SUPPORTED_EXTENSIONS,
     detect_format,
@@ -37,37 +38,49 @@ def test_detect_format_unsupported():
 
 
 def test_load_jpg(sample_jpg: Path):
-    info = load_image(sample_jpg)
-    assert info.format == "jpg"
-    assert info.data.dtype == np.float32
-    assert info.data.shape == (100, 100, 3)
-    assert 0.0 <= info.data.min() <= info.data.max() <= 1.0
-    assert info.bit_depth == 8
+    image = load_image(sample_jpg)
+    assert isinstance(image, ImageData)
+    assert image.source_format == "jpg"
+    assert image.encoding == Encoding.SRGB
+    assert image.data.dtype == np.float32
+    assert image.data.shape == (100, 100, 3)
+    assert 0.0 <= image.data.min() <= image.data.max() <= 1.0
+    assert image.source_bit_depth == 8
 
 
-def test_save_and_reload(sample_image: np.ndarray, tmp_path: Path):
+def test_save_and_reload(sample_image: ImageData, tmp_path: Path):
     path = tmp_path / "out.jpg"
     save_image(sample_image, path)
     assert path.exists()
 
-    info = load_image(path)
-    assert info.data.shape[2] == 3
-    assert info.data.dtype == np.float32
+    image = load_image(path)
+    assert image.data.shape[2] == 3
+    assert image.data.dtype == np.float32
 
 
-def test_save_png(sample_image: np.ndarray, tmp_path: Path):
+def test_save_png(sample_image: ImageData, tmp_path: Path):
     path = tmp_path / "out.png"
     save_image(sample_image, path)
     assert path.exists()
 
-    info = load_image(path)
-    assert info.format == "png"
+    image = load_image(path)
+    assert image.source_format == "png"
 
 
-def test_save_creates_parent_dirs(sample_image: np.ndarray, tmp_path: Path):
+def test_save_creates_parent_dirs(sample_image: ImageData, tmp_path: Path):
     path = tmp_path / "nested" / "dir" / "out.jpg"
     save_image(sample_image, path)
     assert path.exists()
+
+
+def test_save_linear_auto_converts(sample_linear_image: ImageData, tmp_path: Path):
+    """Saving a linear image auto-converts to sRGB."""
+    path = tmp_path / "out.jpg"
+    save_image(sample_linear_image, path)
+    assert path.exists()
+
+    image = load_image(path)
+    assert image.encoding == Encoding.SRGB
 
 
 def test_supported_extensions_complete():

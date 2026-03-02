@@ -14,12 +14,13 @@ from shotline.pipeline import Pipeline
 def test_pipeline_with_stub_processors(sample_jpg: Path, tmp_path: Path):
     """Pipeline runs with processors that don't need models and match input type."""
     out = tmp_path / "out.jpg"
-    config = PipelineConfig(default_steps=["raw_develop", "white_balance"])
+    config = PipelineConfig(default_steps=["raw_develop", "tone_map", "white_balance"])
     pipeline = Pipeline(config=config)
     result = pipeline.run(sample_jpg, out)
 
-    # raw_develop skipped (jpg not in supported_inputs), white_balance runs
+    # raw_develop skipped (jpg not in supported_inputs), tone_map and white_balance run
     assert "raw_develop" in result.skipped
+    assert any(s["name"] == "tone_map" for s in result.steps_run)
     assert any(s["name"] == "white_balance" for s in result.steps_run)
     assert out.exists()
 
@@ -67,3 +68,12 @@ def test_pipeline_result_to_dict(sample_jpg: Path, tmp_path: Path):
     assert "steps" in d
     assert "skipped" in d
     assert isinstance(d["steps"], list)
+
+
+def test_pipeline_encoding_in_result(sample_jpg: Path, tmp_path: Path):
+    """Pipeline result includes encoding info for each step."""
+    out = tmp_path / "out.jpg"
+    result = Pipeline(steps=["tone_map", "white_balance"]).run(sample_jpg, out)
+    for step in result.steps_run:
+        assert "encoding" in step
+        assert step["encoding"] in ("linear", "srgb")
