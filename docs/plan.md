@@ -14,12 +14,14 @@ src/shotline/
 ├── cli.py                   # Typer CLI
 ├── pipeline.py              # 流水线编排（简单串联）
 ├── config.py                # 配置 + TOML 加载
+├── image.py                 # ImageData 数据结构 + sRGB 传递函数
 ├── io.py                    # 图片 I/O (RAW/HEIF/JPG)
 ├── models.py                # AI 模型下载/缓存
 ├── processor.py             # BaseProcessor ABC + 注册表
 └── processors/
     ├── __init__.py
     ├── raw_develop.py       # RAW 开发 (rawpy)
+    ├── tone_map.py          # 色调映射 (filmic S 曲线)
     ├── denoise.py           # AI 去噪 (NAFNet)
     ├── horizon.py           # 水平矫正 (OpenCV)
     ├── white_balance.py     # 白平衡
@@ -31,6 +33,7 @@ tests/
 ├── conftest.py
 ├── test_processor.py        # 处理器注册/接口测试
 ├── test_pipeline.py         # Pipeline 测试
+├── test_image.py            # ImageData + sRGB 传递函数测试
 ├── test_io.py               # I/O 测试
 └── test_cli.py              # CLI 集成测试
 ```
@@ -39,14 +42,14 @@ tests/
 
 ### BaseProcessor (`src/shotline/processor.py`)
 
-- ABC：`meta()` 返回名称/描述/排序，`process(image, params)` 处理图片
+- ABC：`meta()` 返回名称/描述/排序，`process(ImageData, params) -> ImageData`
 - `@register_processor` 装饰器自动注册
-- 图片用 `np.ndarray float32 [0,1]` 传递
+- 图片用 `ImageData` 传递（见 [image-data-flow.md](image-data-flow.md)）
 - `status()` 返回 available / needs_model / unavailable
 
 ### Pipeline (`src/shotline/pipeline.py`)
 
-简单串联：接收 step 名称列表，按序执行。模型未下载或输入类型不匹配时跳过。
+简单串联：接收 step 名称列表，按序执行。模型未下载或输入类型不匹配时跳过。`ImageData` 在处理器之间直接传递，metadata 自动累积。
 
 ### CLI (`src/shotline/cli.py`)
 
@@ -92,7 +95,7 @@ shotline models download all                     # 下载模型
 
 ```bash
 pip install -e ".[dev]"
-shotline list                    # 列出 8 个处理器
+shotline list                    # 列出 9 个处理器
 shotline run test.jpg -o out.jpg # stub pipeline 跑通
 pytest                           # 测试通过
 ruff check src/ tests/           # lint 通过
