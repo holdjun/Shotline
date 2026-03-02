@@ -15,7 +15,7 @@ DEFAULT_CONFIG_PATHS = [
 
 DEFAULT_STEPS = [
     "raw_develop",
-    "tone_map",
+    "exposure_adjust",
     "denoise",
     "horizon",
     "white_balance",

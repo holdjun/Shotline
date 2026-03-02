@@ -17,7 +17,7 @@ def test_list_command():
     assert result.exit_code == 0
     assert "RAW Development" in result.output
     assert "AI Denoise" in result.output
-    assert "Tone Map" in result.output
+    assert "Exposure Adjust" in result.output
 
 
 def test_list_json():
@@ -28,7 +28,7 @@ def test_list_json():
     assert len(data) == 9
     names = [p["name"] for p in data]
     assert "raw_develop" in names
-    assert "tone_map" in names
+    assert "exposure_adjust" in names
     assert "denoise" in names
 
 

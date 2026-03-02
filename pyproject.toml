@@ -51,6 +51,7 @@ select = ["E", "F", "I", "N", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = ["slow: marks tests that require real image files (deselect with '-m \"not slow\"')"]
 
 [tool.mypy]
 python_version = "3.13"

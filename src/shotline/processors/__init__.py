@@ -5,9 +5,9 @@ from shotline.processors import (  # noqa: F401
     color_grade,
     content_remove,
     denoise,
+    exposure_adjust,
     horizon,
     raw_develop,
     super_res,
-    tone_map,
     white_balance,
 )
