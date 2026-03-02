@@ -38,7 +38,8 @@ class Pipeline:
 
     def run(self, input_path: Path, output_path: Path) -> PipelineResult:
         result = PipelineResult()
-        image: ImageData = load_image(input_path)
+        raw_params = self.config.get_processor_params("raw_develop")
+        image: ImageData = load_image(input_path, raw_params=raw_params)
 
         for proc in self._processors:
             meta = proc.meta()

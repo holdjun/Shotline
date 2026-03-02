@@ -41,3 +41,6 @@ venv/
 *.pth
 *.pt
 *.onnx
+
+# Test images (large files, not tracked)
+tests/image/

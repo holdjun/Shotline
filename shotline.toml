@@ -23,4 +23,12 @@ cache_dir = "~/.cache/shotline/models"
 # aspect_ratio = "3:2"
 
 [processor_params.raw_develop]
-# ev = 0.0
+# ev = 0.0                           # 曝光补偿（档位 stops）
+# exp_preserve_highlights = 0.75     # 曝光补偿时的高光保护 (0-1)
+# demosaic_algorithm = "DHT"          # AHD, DHT, AAHD, DCB, PPG, VNG (LMMSE/AMAZE need GPL packs)
+# highlight_mode = "Blend"           # Clip, Blend, ReconstructDefault, 或 3-9
+# fbdd_noise_reduction = "Light"     # Off, Light, Full
+# chromatic_aberration = [1.0, 1.0]  # [red_scale, blue_scale]
+# noise_thr = null                   # 小波降噪阈值
+# median_filter_passes = 0           # 中值滤波轮次
+# bright = 1.0                       # 亮度乘数
