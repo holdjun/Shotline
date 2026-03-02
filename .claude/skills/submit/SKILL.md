@@ -6,36 +6,31 @@ Complete code-to-PR workflow. Self-review, commit, push, and open a pull request
 
 ## Steps
 
-### 1. Ensure Feature Branch (based on latest origin/main)
-
-Always start by fetching the latest main:
+### 1. Ensure Feature Branch
 
 ```bash
-git fetch origin main
+git fetch origin
 ```
 
-Then check two things: (a) are we on a feature branch, and (b) is it based on the latest `origin/main`.
-
-**If on `main`:** stash any uncommitted changes, create a new feature branch from `origin/main`, and pop the stash.
-
-**If on a feature branch:** check if `origin/main` is an ancestor of HEAD:
+Check if the current branch has an open PR:
 
 ```bash
-git merge-base --is-ancestor origin/main HEAD
+gh pr view --json state --jq '.state' 2>/dev/null
 ```
 
-- If **yes**: branch is up-to-date with main, proceed normally.
-- If **no**: `origin/main` has moved ahead (previous PR was squash-merged). Stash uncommitted changes, create a new feature branch from `origin/main`, pop the stash, and **delete the old stale branch** to keep local branches clean.
-
-When creating a new branch, infer `<type>/<description>` from the current changes:
+- **Open PR exists** → stay on this branch, proceed to Step 2.
+- **No open PR** (on `main`, or on a stale branch whose PR was merged/closed) → stash uncommitted changes, create a new feature branch from `origin/main`, pop the stash, and delete the old branch if applicable.
 
 ```bash
 OLD_BRANCH=$(git branch --show-current)
 git stash --include-untracked  # if there are uncommitted changes
 git checkout -b <type>/<description> origin/main
 git stash pop                  # if stashed
-git branch -D "$OLD_BRANCH"   # clean up stale branch
+# delete old branch only if it wasn't main
+[[ "$OLD_BRANCH" != "main" ]] && git branch -D "$OLD_BRANCH"
 ```
+
+Infer `<type>/<description>` from the current changes.
 
 ### 2. Quality Checks
 
@@ -95,9 +90,9 @@ Rules:
 - Max 72 characters, imperative mood
 - If all changes are already committed, skip to Step 6
 
-### 6. Push
+### 6. Push and Create/Update PR
 
-Push the branch to remote:
+Push the branch:
 
 ```bash
 git push -u origin HEAD
@@ -109,17 +104,10 @@ If rejected (e.g., after amend or rebase):
 git push --force-with-lease -u origin HEAD
 ```
 
-### 7. Create or Update PR
+Then check if a PR already exists (reuse result from Step 1):
 
-Check if a PR already exists:
-
-```bash
-gh pr view --json url 2>/dev/null
-```
-
-If a PR exists, the push already updated it — skip to Step 8.
-
-Otherwise, create a new PR:
+- **PR exists** → push already updated it, skip to Step 7.
+- **No PR** → create one:
 
 ```bash
 gh pr create --title "<type>: <description>" --body "$(cat <<'EOF'
@@ -144,7 +132,7 @@ EOF
 )"
 ```
 
-### 8. Monitor CI
+### 7. Monitor CI
 
 ```bash
 gh pr checks --watch
