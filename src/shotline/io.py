@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from shotline.image import Encoding, ImageData
+
+logger = logging.getLogger(__name__)
 
 RAW_EXTENSIONS = {".cr2", ".cr3", ".nef", ".arw", ".dng", ".orf", ".rw2", ".raf"}
 HEIF_EXTENSIONS = {".heif", ".heic", ".hif"}
@@ -180,6 +184,86 @@ def _extract_raw_metadata(
     return meta
 
 
+def _extract_exif(path: Path, raw: Any = None) -> dict[str, Any]:
+    """Extract camera/lens EXIF from a RAW file.
+
+    Primary: exifread on the file directly.
+    Fallback: rawpy extract_thumb → PIL EXIF.
+    Returns empty dict on failure.
+    """
+    exif: dict[str, Any] = {}
+
+    # Primary path: exifread
+    try:
+        import exifread
+
+        with open(path, "rb") as f:
+            tags = exifread.process_file(f, stop_tag="UNDEF", details=False)
+
+        def _tag_str(key: str) -> str | None:
+            v = tags.get(key)
+            return str(v).strip() if v else None
+
+        def _tag_float(key: str) -> float | None:
+            v = tags.get(key)
+            if v is None:
+                return None
+            # exifread returns Ratio objects; str(v) gives e.g. "24" or "28/10"
+            s = str(v).strip()
+            if "/" in s:
+                num, den = s.split("/", 1)
+                return float(num) / float(den) if float(den) != 0 else None
+            try:
+                return float(s)
+            except ValueError:
+                return None
+
+        exif = {
+            "camera_make": _tag_str("Image Make"),
+            "camera_model": _tag_str("Image Model"),
+            "lens_make": _tag_str("EXIF LensMake"),
+            "lens_model": _tag_str("EXIF LensModel"),
+            "focal_length": _tag_float("EXIF FocalLength"),
+            "aperture": _tag_float("EXIF FNumber"),
+            "iso": _tag_float("EXIF ISOSpeedRatings"),
+        }
+        # Remove None values
+        exif = {k: v for k, v in exif.items() if v is not None}
+        if exif.get("camera_make") and exif.get("camera_model"):
+            return exif
+    except ImportError:
+        pass
+    except Exception:
+        logger.debug("exifread failed for %s, trying PIL fallback", path)
+
+    # Fallback: rawpy thumbnail → PIL EXIF
+    if raw is not None:
+        try:
+            from PIL import Image
+            from PIL.ExifTags import Base as ExifBase
+
+            thumb = raw.extract_thumb()
+            if thumb.format == 1:  # JPEG
+                img = Image.open(BytesIO(thumb.data))
+                pil_exif = img.getexif()
+                exif_ifd = pil_exif.get_ifd(0x8769)  # Exif IFD
+
+                exif = {
+                    "camera_make": pil_exif.get(ExifBase.Make),
+                    "camera_model": pil_exif.get(ExifBase.Model),
+                    "lens_make": exif_ifd.get(42035),  # LensMake
+                    "lens_model": exif_ifd.get(42036),  # LensModel
+                    "focal_length": float(exif_ifd.get(37386, 0)) or None,
+                    "aperture": float(exif_ifd.get(33437, 0)) or None,
+                    "iso": exif_ifd.get(34855),
+                }
+                exif = {k: v for k, v in exif.items() if v is not None}
+        except Exception:
+            logger.debug("PIL EXIF fallback failed for %s", path)
+
+    return exif
+
+
 def _load_raw(path: Path, raw_params: dict[str, Any] | None = None) -> ImageData:
     """Load RAW as LINEAR float32 with adaptive rawpy parameters.
 
@@ -268,6 +352,11 @@ def _load_raw(path: Path, raw_params: dict[str, Any] | None = None) -> ImageData
             bayer_analysis=bayer_analysis,
             wb_compensation=wb_compensation,
         )
+
+        # ── EXIF extraction (camera/lens identity for lens correction) ──
+        exif = _extract_exif(path, raw)
+        if exif:
+            metadata["exif"] = exif
 
         return ImageData(
             data=data,

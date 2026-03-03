@@ -35,6 +35,17 @@ def sample_linear_image() -> ImageData:
     )
 
 
+SAMPLE_EXIF = {
+    "camera_make": "Sony",
+    "camera_model": "ILCE-7M3",
+    "lens_make": "Sony",
+    "lens_model": "FE 24-70mm F2.8 GM",
+    "focal_length": 35.0,
+    "aperture": 2.8,
+    "iso": 400,
+}
+
+
 @pytest.fixture
 def sample_linear_image_with_metadata() -> ImageData:
     """100x100 linear ImageData with raw_loader metadata (simulates _load_raw output)."""
@@ -61,6 +72,38 @@ def sample_linear_image_with_metadata() -> ImageData:
                 "exp_preserve_highlights": 0.75,
                 "used_camera_wb": True,
                 "used_auto_wb": False,
+            }
+        },
+    )
+
+
+@pytest.fixture
+def sample_linear_image_with_exif() -> ImageData:
+    """100x100 linear ImageData with raw_loader + EXIF metadata."""
+    rng = np.random.default_rng(42)
+    data = rng.random((100, 100, 3), dtype=np.float32) * 1.5
+    return ImageData(
+        data=data,
+        encoding=Encoding.LINEAR,
+        source_format="raw",
+        source_bit_depth=16,
+        metadata={
+            "raw_loader": {
+                "camera_whitebalance": [2.1, 1.0, 1.5, 1.0],
+                "daylight_whitebalance": [2.0, 1.0, 1.4, 1.0],
+                "black_level_per_channel": [512, 512, 512, 512],
+                "white_level": 16383,
+                "color_desc": "RGBG",
+                "num_colors": 3,
+                "sizes": {"width": 100, "height": 100},
+                "demosaic_algorithm": "DHT",
+                "highlight_mode": "Blend",
+                "fbdd_noise_reduction": "Light",
+                "exp_shift_applied": 1.0,
+                "exp_preserve_highlights": 0.75,
+                "used_camera_wb": True,
+                "used_auto_wb": False,
+                "exif": dict(SAMPLE_EXIF),
             }
         },
     )

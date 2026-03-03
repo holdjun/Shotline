@@ -25,7 +25,7 @@ def test_list_json():
     assert result.exit_code == 0
     data = json.loads(result.output)
     assert isinstance(data, list)
-    assert len(data) == 9
+    assert len(data) == 10
     names = [p["name"] for p in data]
     assert "raw_develop" in names
     assert "exposure_adjust" in names

@@ -14,6 +14,7 @@ DEFAULT_CONFIG_PATHS = [
 ]
 
 DEFAULT_STEPS = [
+    "lens_correct",
     "raw_develop",
     "exposure_adjust",
     "denoise",

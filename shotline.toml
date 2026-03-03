@@ -1,4 +1,5 @@
 default_steps = [
+    "lens_correct",
     "raw_develop",
     "exposure_adjust",
     "denoise",
@@ -21,6 +22,12 @@ cache_dir = "~/.cache/shotline/models"
 
 [processor_params.auto_crop]
 # aspect_ratio = "3:2"
+
+[processor_params.lens_correct]
+# correct_distortion = true      # 几何畸变校正
+# correct_vignetting = true      # 暗角（光照衰减）校正
+# correct_tca = true             # 横向色差校正
+# distance = 10.0                # 拍摄距离（米），影响暗角校正精度
 
 [processor_params.raw_develop]
 # ── Bayer 域参数（传给 _load_raw，省略则自适应选择）──

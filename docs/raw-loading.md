@@ -2,7 +2,7 @@
 
 ## 概述
 
-RAW 处理由两个阶段完成：`_load_raw`（信号级解码 + 自适应选择）→ `raw_develop`（自动曝光 + Hable filmic + sRGB 输出）。
+RAW 处理由三个阶段完成：`_load_raw`（信号级解码 + EXIF 提取）→ `lens_correct`（镜头光学校正）→ `raw_develop`（自动曝光 + Hable filmic + sRGB 输出）。
 
 JPG/HEIF 走独立路径：`exposure_adjust`（轻微 S-curve）。
 
@@ -14,13 +14,23 @@ _load_raw()
     ├─ _analyze_bayer() — 分析饱和率、噪声级别
     ├─ 自适应选择: 有过曝→Blend, 无过曝→Clip; 高噪声→FBDD Full
     ├─ rawpy.postprocess()
-    └─ 若 Blend: WB 补偿恢复亮度，保留 HDR 高光 (>1.0)
+    ├─ 若 Blend: WB 补偿恢复亮度，保留 HDR 高光 (>1.0)
+    └─ _extract_exif() — 提取相机/镜头 EXIF (make, model, focal, aperture)
     │
     ▼
-ImageData(LINEAR, [0, ~1.5-2.0])
+ImageData(LINEAR, [0, ~1.5-2.0], metadata.raw_loader.exif)
     │
     ▼
-raw_develop
+lens_correct (order=5, 线性空间)
+    ├─ lensfun 数据库查询: camera_make/model → lens profile
+    ├─ apply_color_modification() — 暗角校正 (像素亮度修正)
+    └─ apply_subpixel_geometry_distortion() → cv2.remap() — TCA + 畸变校正
+    │
+    ▼
+ImageData(LINEAR, 光学校正后)
+    │
+    ▼
+raw_develop (order=10)
     ├─ _compute_auto_ev() — log-average scene key → 18% gray
     ├─ 应用 auto_ev + 手动 ev + bright
     ├─ _hable_filmic() — toe 提升暗部 + shoulder 压缩高光
@@ -77,6 +87,79 @@ data *= wb_compensation  # 恢复中间调，高光保留 >1.0 HDR 数据
 ```
 
 Clip 模式不需要补偿（`wb_compensation = 1.0`）。
+
+## EXIF 提取
+
+`_extract_exif(path, raw)` 从 RAW 文件提取相机/镜头 EXIF 信息：
+
+- **主路径**：`exifread.process_file()` 直接解析 RAW 的 TIFF/EXIF header
+- **Fallback**：`rawpy.extract_thumb()` → PIL `Image.getexif()` 从内嵌 JPEG 缩略图提取
+- 提取失败返回空 dict，lens_correct 跳过
+
+提取字段：`camera_make`, `camera_model`, `lens_make`, `lens_model`, `focal_length`, `aperture`, `iso`
+
+存储于 `metadata["raw_loader"]["exif"]`。
+
+## 镜头光学校正（lens_correct）
+
+`lens_correct` processor（order=5）在线性空间对图像做镜头光学校正，依赖 `lensfunpy`（lensfun 的 Python binding）。
+
+### 校正流程
+
+1. 从 `metadata["raw_loader"]["exif"]` 读取 camera/lens 信息
+2. `lensfunpy.Database()` 查询镜头 profile（自动模糊匹配）
+3. **暗角校正**：`Modifier.apply_color_modification()` — 在线性空间修正光照衰减
+4. **TCA + 畸变校正**：`Modifier.apply_subpixel_geometry_distortion()` → `cv2.remap()` — 同时校正色差和几何畸变
+
+### 处理顺序
+
+暗角必须先于几何校正：暗角修改像素亮度值，几何校正做插值重映射。若先做几何校正再暗角，边缘区域的插值像素会得到错误的暗角补偿。
+
+### 依赖
+
+- `lensfunpy>=1.16`：镜头校正核心（optional `[lens]` extra）
+- `exifread>=3.0`：EXIF 解析（optional `[lens]` extra）
+- `opencv-python-headless>=4.8`：`cv2.remap()` 几何重映射（optional `[ai]` extra）
+- 无 cv2 时仅做暗角校正，跳过几何校正
+
+### 降级策略
+
+| 情况 | 行为 |
+|------|------|
+| lensfunpy 未安装 | processor status=UNAVAILABLE，自动跳过 |
+| EXIF 提取失败 | 跳过，metadata 记录原因 |
+| 镜头不在 lensfun 数据库 | 跳过，metadata 记录 camera/lens |
+| cv2 未安装 | 仅做暗角校正，跳过几何校正 |
+
+### 配置
+
+```toml
+[processor_params.lens_correct]
+correct_distortion = true      # 几何畸变校正
+correct_vignetting = true      # 暗角校正
+correct_tca = true             # 横向色差校正
+distance = 10.0                # 拍摄距离（米）
+```
+
+### 元数据输出
+
+`metadata["lens_correct"]`：
+
+```python
+{
+    "camera": "ILCE-7M3",
+    "lens": "Sony FE 24-70mm f/2.8 GM",
+    "crop_factor": 1.0,
+    "focal_length": 35.0,
+    "aperture": 2.8,
+    "distance": 10.0,
+    "corrections": {
+        "vignetting": True,
+        "tca": True,
+        "distortion": True,
+    }
+}
+```
 
 ## 自动曝光算法
 

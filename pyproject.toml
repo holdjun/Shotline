@@ -7,7 +7,7 @@ name = "shotline"
 version = "0.1.0"
 description = "Photo processing pipeline CLI"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 license = "MIT"
 
 dependencies = [
@@ -21,6 +21,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+lens = [
+    "lensfunpy>=1.16",
+    "exifread>=3.0",
+]
 ai = [
     "torch>=2.0",
     "torchvision>=0.15",
@@ -33,7 +37,7 @@ dev = [
     "ruff>=0.1",
     "mypy>=1.5",
 ]
-all = ["shotline[ai,dev]"]
+all = ["shotline[lens,ai,dev]"]
 
 [project.scripts]
 shotline = "shotline.cli:main"
@@ -42,7 +46,7 @@ shotline = "shotline.cli:main"
 packages = ["src/shotline"]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
@@ -54,5 +58,5 @@ addopts = "-v --tb=short"
 markers = ["slow: marks tests that require real image files (deselect with '-m \"not slow\"')"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 strict = true

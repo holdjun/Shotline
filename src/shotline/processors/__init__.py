@@ -7,6 +7,7 @@ from shotline.processors import (  # noqa: F401
     denoise,
     exposure_adjust,
     horizon,
+    lens_correct,
     raw_develop,
     super_res,
     white_balance,

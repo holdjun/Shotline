@@ -27,7 +27,8 @@ def test_list_processors_returns_all():
     assert "auto_crop" in names
     assert "super_res" in names
     assert "content_remove" in names
-    assert len(metas) == 9
+    assert "lens_correct" in names
+    assert len(metas) == 10
 
 
 def test_list_processors_sorted_by_order():

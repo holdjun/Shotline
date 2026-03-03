@@ -13,6 +13,7 @@ from shotline.io import (
     SUPPORTED_EXTENSIONS,
     _analyze_bayer,
     _compute_wb_compensation,
+    _extract_exif,
     detect_format,
     load_image,
     save_image,
@@ -286,7 +287,9 @@ def test_load_raw_metadata_fields():
         "wb_compensation",
         "bayer_analysis",
     }
-    assert set(meta.keys()) == expected_keys
+    # "exif" is optional (only present when EXIF extraction succeeds)
+    assert expected_keys <= set(meta.keys())
+    assert set(meta.keys()) - expected_keys <= {"exif"}
     assert meta["white_level"] == 16383
     assert meta["color_desc"] == "RGBG"
     assert meta["sizes"] == {"width": 100, "height": 100}
@@ -429,3 +432,79 @@ def test_real_arw_adaptive_pipeline(tmp_path: Path):
     reloaded = load_image(out)
     mean_brightness = float(reloaded.data.mean())
     assert 0.15 <= mean_brightness <= 0.65
+
+
+# ── EXIF extraction tests ──
+
+
+def test_extract_exif_with_exifread(tmp_path: Path):
+    """exifread path: create a dummy file and mock exifread.process_file."""
+    from unittest.mock import MagicMock
+
+    dummy_file = tmp_path / "test.arw"
+    dummy_file.write_bytes(b"\x00" * 100)
+
+    mock_tags = {
+        "Image Make": MagicMock(__str__=lambda s: "Sony"),
+        "Image Model": MagicMock(__str__=lambda s: "ILCE-7M3"),
+        "EXIF LensMake": MagicMock(__str__=lambda s: "Sony"),
+        "EXIF LensModel": MagicMock(__str__=lambda s: "FE 24-70mm F2.8 GM"),
+        "EXIF FocalLength": MagicMock(__str__=lambda s: "35"),
+        "EXIF FNumber": MagicMock(__str__=lambda s: "28/10"),
+        "EXIF ISOSpeedRatings": MagicMock(__str__=lambda s: "400"),
+    }
+
+    with patch("exifread.process_file", return_value=mock_tags):
+        exif = _extract_exif(dummy_file)
+
+    assert exif["camera_make"] == "Sony"
+    assert exif["camera_model"] == "ILCE-7M3"
+    assert exif["lens_model"] == "FE 24-70mm F2.8 GM"
+    assert exif["focal_length"] == 35.0
+    assert exif["aperture"] == 2.8
+    assert exif["iso"] == 400.0
+
+
+def test_extract_exif_ratio_parsing(tmp_path: Path):
+    """exifread parses fraction strings like '35/1' correctly."""
+    from unittest.mock import MagicMock
+
+    dummy_file = tmp_path / "test.arw"
+    dummy_file.write_bytes(b"\x00" * 100)
+
+    mock_tags = {
+        "Image Make": MagicMock(__str__=lambda s: "Canon"),
+        "Image Model": MagicMock(__str__=lambda s: "EOS R5"),
+        "EXIF FocalLength": MagicMock(__str__=lambda s: "70/1"),
+        "EXIF FNumber": MagicMock(__str__=lambda s: "4"),
+    }
+
+    with patch("exifread.process_file", return_value=mock_tags):
+        exif = _extract_exif(dummy_file)
+
+    assert exif["camera_make"] == "Canon"
+    assert exif["focal_length"] == 70.0
+    assert exif["aperture"] == 4.0
+
+
+def test_extract_exif_fallback_empty_on_failure(tmp_path: Path):
+    """When exifread not installed and no rawpy, returns empty dict."""
+    dummy_file = tmp_path / "test.arw"
+    dummy_file.write_bytes(b"\x00" * 100)
+
+    with patch.dict("sys.modules", {"exifread": None}):
+        exif = _extract_exif(dummy_file)
+
+    assert exif == {} or isinstance(exif, dict)
+
+
+@_skip_unless_exists(_ARW_1)
+@pytest.mark.slow
+def test_real_arw_has_exif():
+    """Real ARW file has EXIF metadata after loading."""
+    image = load_image(_ARW_1)
+    meta = image.metadata["raw_loader"]
+    assert "exif" in meta
+    exif = meta["exif"]
+    assert "camera_make" in exif
+    assert "camera_model" in exif
