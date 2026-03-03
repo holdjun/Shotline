@@ -1,4 +1,6 @@
-# Shotline Framework
+# Shotline Framework (Archived)
+
+> **Note:** This is the initial planning document from project inception. Some details (directory structure, processor names, data flow) no longer reflect the current implementation. Kept for historical reference.
 
 ## Context
 

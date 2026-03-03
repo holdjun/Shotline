@@ -23,12 +23,13 @@ This project requires thinking as **engineer + photographer + retoucher** simult
 ## Directory Structure
 
 ```
-src/shotline/          # Main package source
+src/shotline/             # Main package source
 src/shotline/processors/  # Individual processing step modules
-tests/                 # Test suite
-docs/                  # Technical docs, architecture, product specs
-.claude/               # Claude Code settings, skills
-.github/               # CI workflows, PR/issue templates, Dependabot
+tests/                    # Test suite
+docs/                     # Technical docs, architecture, product specs
+shotline.toml             # Default processing config
+.claude/                  # Claude Code settings, skills
+.github/                  # CI workflows, PR/issue templates, Dependabot
 ```
 
 ## Common Commands
