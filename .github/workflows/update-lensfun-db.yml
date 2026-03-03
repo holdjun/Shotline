@@ -1,0 +1,146 @@
+name: Update lensfun DB
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Every Monday at 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download and check lensfun DB
+        id: check
+        run: |
+          set -euo pipefail
+
+          DB_URL="https://lensfun.github.io/db/version_1.tar.bz2"
+          DB_DIR="data/lensfun-db"
+          SHA_FILE="$DB_DIR/.sha256"
+          TMP_TAR="$(mktemp)"
+
+          curl -fsSL "$DB_URL" -o "$TMP_TAR"
+          NEW_SHA=$(sha256sum "$TMP_TAR" | cut -d' ' -f1)
+          OLD_SHA=""
+          if [ -f "$SHA_FILE" ]; then
+            OLD_SHA=$(cat "$SHA_FILE" | tr -d '[:space:]')
+          fi
+
+          if [ "$NEW_SHA" = "$OLD_SHA" ]; then
+            echo "No changes in lensfun DB"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            rm -f "$TMP_TAR"
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+          # Save old XML files for changelog diff
+          OLD_DIR="$(mktemp -d)"
+          if ls "$DB_DIR"/*.xml >/dev/null 2>&1; then
+            cp "$DB_DIR"/*.xml "$OLD_DIR/"
+          fi
+
+          # Extract new DB — tar contains XML files at root level
+          rm -f "$DB_DIR"/*.xml
+          tar -xjf "$TMP_TAR" -C "$DB_DIR"
+          echo "$NEW_SHA" > "$SHA_FILE"
+          rm -f "$TMP_TAR"
+
+          # Generate changelog
+          python3 - "$OLD_DIR" "$DB_DIR" <<'PYEOF'
+          import sys, os, xml.etree.ElementTree as ET
+
+          def parse_entries(directory):
+              cameras, lenses = set(), set()
+              for f in sorted(os.listdir(directory)):
+                  if not f.endswith(".xml"):
+                      continue
+                  try:
+                      tree = ET.parse(os.path.join(directory, f))
+                  except ET.ParseError:
+                      continue
+                  for cam in tree.iter("camera"):
+                      model = cam.findtext("model")
+                      maker = cam.findtext("maker")
+                      if model:
+                          cameras.add(f"{maker} {model}" if maker else model)
+                  for lens in tree.iter("lens"):
+                      model = lens.findtext("model")
+                      maker = lens.findtext("maker")
+                      if model:
+                          lenses.add(f"{maker} {model}" if maker else model)
+              return cameras, lenses
+
+          old_dir, new_dir = sys.argv[1], sys.argv[2]
+          old_cams, old_lenses = parse_entries(old_dir)
+          new_cams, new_lenses = parse_entries(new_dir)
+
+          added_cams = sorted(new_cams - old_cams)
+          added_lenses = sorted(new_lenses - old_lenses)
+
+          body_lines = ["## lensfun DB update\n"]
+          body_lines.append(f"**Cameras**: {len(new_cams)} total (+{len(added_cams)} new)")
+          body_lines.append(f"**Lenses**: {len(new_lenses)} total (+{len(added_lenses)} new)\n")
+
+          if added_cams:
+              body_lines.append("### New cameras")
+              for c in added_cams[:30]:
+                  body_lines.append(f"- {c}")
+              if len(added_cams) > 30:
+                  body_lines.append(f"- ... and {len(added_cams) - 30} more")
+              body_lines.append("")
+
+          if added_lenses:
+              body_lines.append("### New lenses")
+              for l in added_lenses[:30]:
+                  body_lines.append(f"- {l}")
+              if len(added_lenses) > 30:
+                  body_lines.append(f"- ... and {len(added_lenses) - 30} more")
+              body_lines.append("")
+
+          body = "\n".join(body_lines)
+          # Write to file for the next step
+          with open(os.environ.get("RUNNER_TEMP", "/tmp") + "/pr_body.md", "w") as f:
+              f.write(body)
+          print(body)
+          PYEOF
+
+      - name: Create PR
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          BRANCH="auto/update-lensfun-db"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Create or reset branch
+          git checkout -B "$BRANCH"
+          git add data/lensfun-db/
+          git commit -m "chore: update lensfun database"
+
+          git push -u origin "$BRANCH" --force
+
+          PR_BODY="$(cat "${RUNNER_TEMP}/pr_body.md")"
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING_PR" ]; then
+            gh pr edit "$EXISTING_PR" --body "$PR_BODY"
+            echo "Updated existing PR #$EXISTING_PR"
+          else
+            gh pr create \
+              --title "chore: update lensfun database" \
+              --body "$PR_BODY" \
+              --base main \
+              --head "$BRANCH"
+          fi

@@ -48,7 +48,7 @@ shotline.toml             # Default processing config
 2. **Always use `/submit` to submit PRs** — no exceptions, no manual `git push` + `gh pr create`
 3. **Never commit secrets** — no `.env` files, API keys, or tokens in git
 4. **No debug output in production code** — remove debug statements before committing
-5. **Every feature must include tests** — no PR without corresponding test coverage
+5. **Every feature must include tests** — no PR without corresponding test coverage. Tests must guard real behavior, not exist for the sake of coverage. Don't test language mechanics (dict assignment, return types, key existence without value checks). Do test: correctness of domain logic, physical/mathematical direction of transforms, branch coverage for distinct code paths, degradation behavior. If a test would still pass with a broken implementation, it's worthless — delete it.
 
 ## Skills
 
