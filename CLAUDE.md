@@ -1,14 +1,24 @@
-# AI Coding Agent Template
+# Shotline — Automated RAW Processing Pipeline
 
 ## Overview
 
-A language-agnostic template for AI-driven development workflows. 100% AI-runnable — only PR review and merge requires human intervention.
+A lightweight, automated photo processing tool that takes RAW files from camera to a solid 60-point baseline edit. Combines signal-level RAW decoding with aesthetic tone mapping to produce images that match or exceed camera JPEG/HEIF direct output quality — with full control over every step.
+
+100% AI-runnable development workflow — only PR review and merge requires human intervention.
 
 ## Core Principles
 
 - **Elegant, efficient, concise** — code and docs must not be overcomplicated or redundant
 - **Leverage existing tools** — use MCP servers, skills, `gh` CLI, and established ecosystems; don't reinvent the wheel
 - **Convention over configuration** — follow project conventions; when in doubt, check `docs/`
+
+## Domain Expertise
+
+This project requires thinking as **engineer + photographer + retoucher** simultaneously:
+
+- **Engineer**: correctness before performance; understand the math behind every transform, never blindly chain operations
+- **Photographer**: understand light, exposure, optics, and what makes a technically sound image — know what the camera does and why
+- **Retoucher**: understand imaging principles end-to-end — know how to make an image look better and why
 
 ## Directory Structure
 
@@ -39,30 +49,12 @@ docs/                  # Technical docs, architecture, product specs
 4. **No debug output in production code** — remove debug statements before committing
 5. **Every feature must include tests** — no PR without corresponding test coverage
 
-## Git Workflow
+## Skills
 
-All development must be based on the **latest remote `main`**. Always branch from `origin/main`, not local `main`:
+Project skills (invoked via `/skill-name`):
 
-```bash
-git fetch origin main
-git checkout -b <type>/<short-description> origin/main
-```
-
-Development flow:
-
-```
-1. git fetch origin main && git checkout -b feat/my-change origin/main
-2. Make changes, commit incrementally
-3. Run project quality checks (lint, format, test, build)
-4. /submit    # handles push, PR creation, CI monitoring
-```
-
-After a PR is merged (squash-merged on GitHub), the local branch diverges from remote `main`. Always start the next branch from `origin/main` and delete the old local branch.
-
-**Hard rules:**
-- Never `git push origin main`
-- Never commit on `main`
-- If on `main` with uncommitted changes: stash, create a branch, then apply
+- **`/submit`** — Complete code-to-PR workflow. Handles branch management, quality checks, self-review, commit, push, PR creation, and CI monitoring. **All code submissions must use this skill.**
+- **`/setup`** — Configure GitHub repository settings (branch protection, merge strategy). Idempotent, safe to re-run.
 
 ## Documentation
 

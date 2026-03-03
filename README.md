@@ -1,40 +1,53 @@
-# AI Coding Agent Template
+# Shotline
 
-A language-agnostic template for AI-driven development. Provides the workflow infrastructure — Claude Code skills, GitHub Actions CI, git conventions, and issue/PR templates — so you can focus on building.
+Automated photo processing pipeline. Supports RAW, JPG, HEIF — from camera to baseline edit with full control over every step.
 
-## What's Included
+## Install
 
-- **Claude Code skills** — `/setup` (configure GitHub repo) and `/submit` (code-to-PR workflow)
-- **GitHub Actions CI** — minimal skeleton, extend per project
-- **Git workflow** — branch protection, squash merge, conventional commits
-- **Issue & PR templates** — structured bug reports, feature requests, and pull requests
-- **Dependabot** — automated GitHub Actions version updates
+Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/).
 
-## Quick Start
-
-1. Create a new repo from this template (or fork it)
-2. Clone and open with Claude Code
-3. Run `/setup` to configure GitHub branch protection and merge settings
-4. Start building — create a feature branch and develop
-5. Run `/submit` when ready to open a PR
-
-## Workflow
-
-```
-git fetch origin main
-git checkout -b feat/my-feature origin/main
-# ... develop ...
-/submit
-# → push, create PR, monitor CI
-# → GitHub squash-merges the PR into main
+```bash
+git clone https://github.com/holdjun/Shotline.git
+cd Shotline
+uv sync                 # core
+uv sync --extra lens    # + lens correction
+uv sync --extra ai      # + AI models
+uv sync --extra all     # everything
 ```
 
-## Customizing for Your Project
+## Usage
 
-After creating a project from this template:
+```bash
+shotline run photo.arw                          # single file
+shotline run ./photos/ -o ./output/             # directory
+shotline run photo.jpg -s denoise,color_grade   # specific steps
+shotline list                                   # show available steps
+```
 
-1. **`CLAUDE.md`** — add tech stack, common commands, project-specific rules
-2. **`.claude/settings.json`** — add language-specific command permissions
-3. **`.github/workflows/ci.yml`** — add build, test, and lint steps
-4. **`.gitignore`** — add language-specific ignore patterns
-5. **`docs/`** — add architecture, conventions, and product docs
+Config: `shotline.toml`, override with `shotline run photo.arw -c my_config.toml`.
+
+## Processing Steps
+
+| Step | Description |
+|------|-------------|
+| `lens_correct` | Lens distortion, vignetting, and chromatic aberration correction |
+| `raw_develop` | Adaptive RAW decoding with auto-exposure and Hable filmic tone mapping |
+| `exposure_adjust` | S-curve exposure refinement |
+| `denoise` | Noise reduction |
+| `horizon` | Horizon leveling |
+| `white_balance` | White balance correction |
+| `color_grade` | Color grading |
+| `auto_crop` | Automatic crop with aspect ratio control |
+
+## Docs
+
+Technical documentation and architecture details live under [`docs/`](docs/).
+
+## Claude Code Skills
+
+- **`/setup`** — Configure GitHub repo settings
+- **`/submit`** — Code-to-PR workflow (lint, test, review, push, create PR, monitor CI)
+
+## License
+
+MIT
