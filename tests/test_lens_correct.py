@@ -5,11 +5,23 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 import shotline.processors  # noqa: F401
 from shotline.image import Encoding, ImageData
 from shotline.processor import ProcessorStatus, get_processor, list_processors
 from tests.conftest import SAMPLE_EXIF
+
+_has_lensfunpy = pytest.importorskip is not None  # just for clarity
+
+try:
+    import lensfunpy  # noqa: F401
+
+    _skip_no_lensfunpy = False
+except ImportError:
+    _skip_no_lensfunpy = True
+
+_requires_lensfunpy = pytest.mark.skipif(_skip_no_lensfunpy, reason="lensfunpy not installed")
 
 
 def _make_linear_with_exif(
@@ -55,9 +67,9 @@ def test_lens_correct_order_before_raw_develop():
 # ── Status ──
 
 
+@_requires_lensfunpy
 def test_lens_correct_status_available():
     proc = get_processor("lens_correct")
-    # lensfunpy is installed in test env
     assert proc.status() == ProcessorStatus.AVAILABLE
 
 
@@ -93,6 +105,7 @@ def test_lens_correct_skips_without_camera_model():
     assert "skipped" in result.metadata["lens_correct"]
 
 
+@_requires_lensfunpy
 def test_lens_correct_skips_without_lens_model():
     """EXIF without lens_model → skip (can't look up lens)."""
     image = _make_linear_with_exif(
@@ -108,6 +121,7 @@ def test_lens_correct_skips_without_lens_model():
     assert "skipped" in result.metadata["lens_correct"]
 
 
+@_requires_lensfunpy
 def test_lens_correct_skips_unknown_camera():
     """Unknown camera → skip with info."""
     image = _make_linear_with_exif(
@@ -124,6 +138,7 @@ def test_lens_correct_skips_unknown_camera():
     assert "skipped" in result.metadata["lens_correct"]
 
 
+@_requires_lensfunpy
 def test_lens_correct_skips_missing_focal_or_aperture():
     """EXIF without focal_length or aperture → skip."""
     image = _make_linear_with_exif(
@@ -142,6 +157,7 @@ def test_lens_correct_skips_missing_focal_or_aperture():
 # ── Correction application ──
 
 
+@_requires_lensfunpy
 def test_lens_correct_applies_with_valid_exif():
     """With valid EXIF for a known camera/lens, corrections are applied."""
     image = _make_linear_with_exif()
@@ -156,6 +172,7 @@ def test_lens_correct_applies_with_valid_exif():
     assert meta["aperture"] == 2.8
 
 
+@_requires_lensfunpy
 def test_lens_correct_preserves_encoding():
     """Output stays LINEAR."""
     image = _make_linear_with_exif()
@@ -164,6 +181,7 @@ def test_lens_correct_preserves_encoding():
     assert result.encoding == Encoding.LINEAR
 
 
+@_requires_lensfunpy
 def test_lens_correct_output_shape():
     """Output may be slightly smaller due to auto-crop of distortion black borders."""
     image = _make_linear_with_exif()
@@ -175,6 +193,7 @@ def test_lens_correct_output_shape():
     assert result.data.shape[2] == 3
 
 
+@_requires_lensfunpy
 def test_lens_correct_modifies_data():
     """Corrections should change pixel values."""
     image = _make_linear_with_exif()
@@ -186,6 +205,7 @@ def test_lens_correct_modifies_data():
         assert not np.array_equal(result.data, image.data)
 
 
+@_requires_lensfunpy
 def test_lens_correct_metadata_fields():
     """Verify all expected metadata fields are present."""
     image = _make_linear_with_exif()
@@ -206,6 +226,7 @@ def test_lens_correct_metadata_fields():
 # ── Config params ──
 
 
+@_requires_lensfunpy
 def test_lens_correct_disable_distortion():
     """correct_distortion=False skips distortion."""
     image = _make_linear_with_exif()
@@ -216,6 +237,7 @@ def test_lens_correct_disable_distortion():
         assert "distortion" not in meta["corrections"] or not meta["corrections"].get("distortion")
 
 
+@_requires_lensfunpy
 def test_lens_correct_disable_vignetting():
     """correct_vignetting=False skips vignetting."""
     image = _make_linear_with_exif()
@@ -226,6 +248,7 @@ def test_lens_correct_disable_vignetting():
         assert "vignetting" not in meta["corrections"] or not meta["corrections"].get("vignetting")
 
 
+@_requires_lensfunpy
 def test_lens_correct_custom_distance():
     """Custom distance parameter is recorded in metadata."""
     image = _make_linear_with_exif()
@@ -239,6 +262,7 @@ def test_lens_correct_custom_distance():
 # ── Vignetting-only without cv2 ──
 
 
+@_requires_lensfunpy
 def test_lens_correct_vignetting_only_without_cv2():
     """Without cv2, only vignetting correction is applied."""
     image = _make_linear_with_exif()

@@ -439,6 +439,8 @@ def test_real_arw_adaptive_pipeline(tmp_path: Path):
 
 def test_extract_exif_with_exifread(tmp_path: Path):
     """exifread path: create a dummy file and mock exifread.process_file."""
+    import sys
+    import types
     from unittest.mock import MagicMock
 
     dummy_file = tmp_path / "test.arw"
@@ -454,7 +456,9 @@ def test_extract_exif_with_exifread(tmp_path: Path):
         "EXIF ISOSpeedRatings": MagicMock(__str__=lambda s: "400"),
     }
 
-    with patch("exifread.process_file", return_value=mock_tags):
+    mock_exifread = types.ModuleType("exifread")
+    mock_exifread.process_file = MagicMock(return_value=mock_tags)
+    with patch.dict(sys.modules, {"exifread": mock_exifread}):
         exif = _extract_exif(dummy_file)
 
     assert exif["camera_make"] == "Sony"
@@ -467,6 +471,8 @@ def test_extract_exif_with_exifread(tmp_path: Path):
 
 def test_extract_exif_ratio_parsing(tmp_path: Path):
     """exifread parses fraction strings like '35/1' correctly."""
+    import sys
+    import types
     from unittest.mock import MagicMock
 
     dummy_file = tmp_path / "test.arw"
@@ -479,7 +485,9 @@ def test_extract_exif_ratio_parsing(tmp_path: Path):
         "EXIF FNumber": MagicMock(__str__=lambda s: "4"),
     }
 
-    with patch("exifread.process_file", return_value=mock_tags):
+    mock_exifread = types.ModuleType("exifread")
+    mock_exifread.process_file = MagicMock(return_value=mock_tags)
+    with patch.dict(sys.modules, {"exifread": mock_exifread}):
         exif = _extract_exif(dummy_file)
 
     assert exif["camera_make"] == "Canon"
