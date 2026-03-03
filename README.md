@@ -4,7 +4,7 @@ Automated photo processing pipeline. Supports RAW, JPG, HEIF — from camera to 
 
 ## Install
 
-Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/).
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/holdjun/Shotline.git

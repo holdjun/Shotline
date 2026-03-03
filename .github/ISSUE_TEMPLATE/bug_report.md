@@ -26,5 +26,5 @@ labels: bug
 ## Environment
 
 - OS:
-- Runtime/SDK version:
-- Browser (if applicable):
+- Python version:
+- shotline version:
