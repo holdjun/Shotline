@@ -169,7 +169,6 @@ def _apply_corrections(
     lens: Any,
     focal_length: float,
     aperture: float,
-    distance: float,
     *,
     correct_distortion: bool = True,
     correct_vignetting: bool = True,
@@ -200,10 +199,12 @@ def _apply_corrections(
         return data, {"skipped": "no corrections enabled or cv2 missing for geometry"}
 
     mod = lensfunpy.Modifier(lens, cam.crop_factor, width, height)
+    # Vignetting is optical (depends on angle of incidence, not subject distance),
+    # so the distance value has negligible effect. Use a fixed placeholder.
     mod.initialize(
         focal_length,
         aperture,
-        distance,
+        1000.0,
         pixel_format=np.float32,
         flags=flags,
     )
@@ -301,7 +302,6 @@ class LensCorrectProcessor(BaseProcessor):
         cam, lens = result
         focal_length = exif.get("focal_length", 0.0)
         aperture = exif.get("aperture", 0.0)
-        distance = float(params.get("distance", 10.0))
 
         if not focal_length or focal_length <= 0 or not aperture or aperture <= 0:
             return image.replace(
@@ -320,7 +320,6 @@ class LensCorrectProcessor(BaseProcessor):
             lens,
             float(focal_length),
             float(aperture),
-            distance,
             correct_distortion=bool(params.get("correct_distortion", True)),
             correct_vignetting=bool(params.get("correct_vignetting", True)),
             correct_tca=bool(params.get("correct_tca", True)),
@@ -335,7 +334,6 @@ class LensCorrectProcessor(BaseProcessor):
                     "crop_factor": cam.crop_factor,
                     "focal_length": float(focal_length),
                     "aperture": float(aperture),
-                    "distance": distance,
                     "corrections": corrections,
                 }
             },

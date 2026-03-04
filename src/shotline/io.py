@@ -89,19 +89,10 @@ def _resolve_fbdd(name: str) -> int:
     return _FBDD_MAP[name.upper()]
 
 
-def _analyze_bayer(
-    raw: Any,
-    *,
-    saturation_threshold: float = 0.005,
-    noise_low: float = 0.003,
-    noise_high: float = 0.008,
-) -> dict[str, Any]:
-    """Analyze raw Bayer data before postprocess to guide adaptive decisions.
+def _analyze_bayer(raw: Any) -> dict[str, Any]:
+    """Analyze raw Bayer data before postprocess for diagnostic metadata.
 
-    Thresholds are configurable via TOML [processor_params.raw_develop]:
-      - saturation_threshold: Bayer pixel saturation ratio to trigger Blend (default 0.005)
-      - noise_low: below this → FBDD Off (default 0.003)
-      - noise_high: above this → FBDD Full; between low/high → FBDD Light (default 0.008)
+    Returns saturation ratio (fraction of pixels near sensor clipping).
     """
     bayer = raw.raw_image_visible.astype(np.float32)
     black_level = float(np.mean(raw.black_level_per_channel))
@@ -109,40 +100,9 @@ def _analyze_bayer(
     dynamic_range = white_level - black_level
 
     normalized = (bayer - black_level) / dynamic_range
-
     saturation_ratio = float((normalized >= 0.95).mean())
 
-    # Noise from dark region (bottom 5% of signal)
-    dark_pixels = normalized[normalized < 0.05]
-    noise_std = float(dark_pixels.std()) if dark_pixels.size > 100 else 0.0
-
-    # Adaptive decisions using configurable thresholds
-    recommended_highlight = "Blend" if saturation_ratio >= saturation_threshold else "Clip"
-    if noise_std < noise_low:
-        recommended_fbdd = "Off"
-    elif noise_std < noise_high:
-        recommended_fbdd = "Light"
-    else:
-        recommended_fbdd = "Full"
-
-    return {
-        "saturation_ratio": saturation_ratio,
-        "noise_std": noise_std,
-        "recommended_highlight": recommended_highlight,
-        "recommended_fbdd": recommended_fbdd,
-    }
-
-
-def _compute_wb_compensation(camera_wb: list[float]) -> float:
-    """Compute brightness compensation factor for Blend highlight mode.
-
-    Blend mode divides all channels by max(WB) to prevent overflow.
-    This factor restores mid-tone brightness while preserving HDR headroom.
-    """
-    wb_rgb = [v for v in camera_wb[:3] if v > 0]
-    if len(wb_rgb) < 2:
-        return 1.0
-    return max(wb_rgb) / min(wb_rgb)
+    return {"saturation_ratio": saturation_ratio}
 
 
 def _extract_raw_metadata(
@@ -156,7 +116,6 @@ def _extract_raw_metadata(
     used_camera_wb: bool,
     used_auto_wb: bool,
     bayer_analysis: dict[str, Any] | None = None,
-    wb_compensation: float = 1.0,
 ) -> dict[str, Any]:
     """Extract metadata from rawpy handle + processing params."""
     sizes = raw.sizes
@@ -177,7 +136,6 @@ def _extract_raw_metadata(
         "exp_preserve_highlights": exp_preserve_highlights,
         "used_camera_wb": used_camera_wb,
         "used_auto_wb": used_auto_wb,
-        "wb_compensation": wb_compensation,
     }
     if bayer_analysis is not None:
         meta["bayer_analysis"] = bayer_analysis
@@ -265,14 +223,14 @@ def _extract_exif(path: Path, raw: Any = None) -> dict[str, Any]:
 
 
 def _load_raw(path: Path, raw_params: dict[str, Any] | None = None) -> ImageData:
-    """Load RAW as LINEAR float32 with adaptive rawpy parameters.
+    """Load RAW as LINEAR float32 via rawpy.
 
-    Performs Bayer analysis before postprocess to auto-select highlight mode
-    and FBDD noise reduction. User-specified values in raw_params override
-    the adaptive choices.
+    Uses fixed Blend highlight mode (smooth highlight recovery) and no
+    pre-demosaic noise reduction (FBDD Off). User-specified values in
+    raw_params override these defaults.
 
-    After Blend highlight mode, applies WB compensation to restore brightness
-    while preserving HDR headroom (values > 1.0 in highlights).
+    Blend mode's WB normalization (dividing by max(WB)) lowers overall
+    brightness; this is intentional and absorbed by auto-EV downstream.
     """
     import rawpy
 
@@ -286,29 +244,19 @@ def _load_raw(path: Path, raw_params: dict[str, Any] | None = None) -> ImageData
     noise_thr = params.get("noise_thr")
     median_passes = int(params.get("median_filter_passes", 0))
 
-    # User overrides: None = auto-select, explicit string = forced
-    highlight_override = params.get("highlight_mode")
-    fbdd_override = params.get("fbdd_noise_reduction")
+    # Defaults: Blend for highlight recovery, FBDD Off (defer to post-demosaic denoise).
+    # User can override via config.
+    highlight = params.get("highlight_mode", "Blend")
+    fbdd = params.get("fbdd_noise_reduction", "Off")
 
     exp_shift = 2.0**ev if ev != 0.0 else 1.0
     demosaic_value, demosaic_alg = _resolve_demosaic(demosaic_requested)
 
     with rawpy.imread(str(path)) as raw:
-        # ── Bayer analysis (before postprocess) ──
-        bayer_analysis = _analyze_bayer(
-            raw,
-            saturation_threshold=float(params.get("saturation_threshold", 0.005)),
-            noise_low=float(params.get("noise_low", 0.003)),
-            noise_high=float(params.get("noise_high", 0.008)),
-        )
-
-        # Adaptive or user-forced selection
-        highlight = highlight_override or bayer_analysis["recommended_highlight"]
-        fbdd = fbdd_override or bayer_analysis["recommended_fbdd"]
+        bayer_analysis = _analyze_bayer(raw)
 
         # White balance fallback: camera WB → auto WB
-        camera_wb = list(raw.camera_whitebalance)
-        use_camera_wb = any(v != 0.0 for v in camera_wb)
+        use_camera_wb = any(v != 0.0 for v in raw.camera_whitebalance)
         use_auto_wb = not use_camera_wb
 
         pp_kwargs: dict[str, Any] = {
@@ -334,12 +282,6 @@ def _load_raw(path: Path, raw_params: dict[str, Any] | None = None) -> ImageData
         rgb = raw.postprocess(**pp_kwargs)
         data = rgb.astype(np.float32) / 65535.0
 
-        # ── WB compensation for Blend mode ──
-        wb_compensation = 1.0
-        if str(highlight).upper() == "BLEND":
-            wb_compensation = _compute_wb_compensation(camera_wb)
-            data = data * wb_compensation
-
         metadata = _extract_raw_metadata(
             raw,
             demosaic_algorithm=demosaic_alg,
@@ -350,7 +292,6 @@ def _load_raw(path: Path, raw_params: dict[str, Any] | None = None) -> ImageData
             used_camera_wb=use_camera_wb,
             used_auto_wb=use_auto_wb,
             bayer_analysis=bayer_analysis,
-            wb_compensation=wb_compensation,
         )
 
         # ── EXIF extraction (camera/lens identity for lens correction) ──
