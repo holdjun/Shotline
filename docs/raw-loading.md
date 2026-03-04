@@ -4,8 +4,6 @@
 
 RAW 处理由三个阶段完成：`_load_raw`（信号级解码 + EXIF 提取）→ `lens_correct`（镜头光学校正）→ `raw_develop`（自动曝光 + Hable filmic + sRGB 输出）。
 
-JPG/HEIF 走独立路径：`exposure_adjust`（轻微 S-curve）。
-
 ```
 文件(*.ARW/.CR2/.DNG)
     │
@@ -36,21 +34,6 @@ raw_develop (order=10)
     │
     ▼
 ImageData(SRGB, [0, 1])  ← 可直接查看的图片
-```
-
-JPG/HEIF 路径：
-
-```
-文件(*.jpg/*.heic/*.hif)
-    │
-    ▼
-load_image() → ImageData(SRGB)
-    │
-    ▼
-exposure_adjust → 轻微 S-curve
-    │
-    ▼
-ImageData(SRGB, [0, 1])
 ```
 
 ## 高光恢复策略
