@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from functools import cache
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -13,6 +15,7 @@ from shotline.processor import BaseProcessor, ProcessorMeta, ProcessorStatus, re
 logger = logging.getLogger(__name__)
 
 
+@cache
 def _has_lensfunpy() -> bool:
     try:
         import lensfunpy  # noqa: F401
@@ -22,6 +25,7 @@ def _has_lensfunpy() -> bool:
         return False
 
 
+@cache
 def _has_cv2() -> bool:
     try:
         import cv2  # noqa: F401
@@ -29,6 +33,42 @@ def _has_cv2() -> bool:
         return True
     except ImportError:
         return False
+
+
+def _find_repo_db_files() -> list[str]:
+    """Find lensfun DB XML files shipped in the repository (data/lensfun-db/)."""
+    # Walk up from this file to the project root (contains pyproject.toml)
+    current = Path(__file__).resolve().parent
+    for _ in range(10):
+        if (current / "pyproject.toml").exists():
+            db_dir = current / "data" / "lensfun-db"
+            if db_dir.is_dir():
+                xmls = sorted(str(p) for p in db_dir.glob("*.xml"))
+                if xmls:
+                    return xmls
+            return []
+        current = current.parent
+    return []
+
+
+_db_cache: Any | None = None
+
+
+def _get_database() -> Any:
+    """Get or create a cached lensfunpy Database instance."""
+    global _db_cache
+    if _db_cache is not None:
+        return _db_cache
+    import lensfunpy
+
+    extra = _find_repo_db_files()
+    if extra:
+        logger.debug("Loading lensfun DB with %d extra XML files from repo", len(extra))
+        db = lensfunpy.Database(paths=extra)
+    else:
+        db = lensfunpy.Database()
+    _db_cache = db
+    return db
 
 
 def _find_camera_and_lens(
@@ -182,12 +222,8 @@ def _apply_corrections(
         import cv2
 
         if correct_tca:
-            # apply_subpixel_geometry_distortion combines TCA + distortion
-            if correct_distortion:
-                remap_coords = mod.apply_subpixel_geometry_distortion()
-            else:
-                remap_coords = mod.apply_subpixel_distortion()
-
+            # TCA requires per-channel remap; always include distortion
+            remap_coords = mod.apply_subpixel_geometry_distortion()
             if remap_coords is not None:
                 for ch in range(3):
                     result[..., ch] = cv2.remap(
@@ -197,8 +233,7 @@ def _apply_corrections(
                         cv2.INTER_LANCZOS4,
                     )
                 applied["tca"] = True
-                if correct_distortion:
-                    applied["distortion"] = True
+                applied["distortion"] = True
         elif correct_distortion:
             # Distortion only (no TCA)
             remap_coords = mod.apply_geometry_distortion()
@@ -242,9 +277,7 @@ class LensCorrectProcessor(BaseProcessor):
         if not camera_make or not camera_model:
             return image.replace(metadata={"lens_correct": {"skipped": "no camera EXIF"}})
 
-        import lensfunpy
-
-        db = lensfunpy.Database()
+        db = _get_database()
         result = _find_camera_and_lens(
             db,
             camera_make,

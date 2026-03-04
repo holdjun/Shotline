@@ -102,64 +102,7 @@ Clip 模式不需要补偿（`wb_compensation = 1.0`）。
 
 ## 镜头光学校正（lens_correct）
 
-`lens_correct` processor（order=5）在线性空间对图像做镜头光学校正，依赖 `lensfunpy`（lensfun 的 Python binding）。
-
-### 校正流程
-
-1. 从 `metadata["raw_loader"]["exif"]` 读取 camera/lens 信息
-2. `lensfunpy.Database()` 查询镜头 profile（自动模糊匹配）
-3. **暗角校正**：`Modifier.apply_color_modification()` — 在线性空间修正光照衰减
-4. **TCA + 畸变校正**：`Modifier.apply_subpixel_geometry_distortion()` → `cv2.remap()` — 同时校正色差和几何畸变
-
-### 处理顺序
-
-暗角必须先于几何校正：暗角修改像素亮度值，几何校正做插值重映射。若先做几何校正再暗角，边缘区域的插值像素会得到错误的暗角补偿。
-
-### 依赖
-
-- `lensfunpy>=1.16`：镜头校正核心（optional `[lens]` extra）
-- `exifread>=3.0`：EXIF 解析（optional `[lens]` extra）
-- `opencv-python-headless>=4.8`：`cv2.remap()` 几何重映射（optional `[ai]` extra）
-- 无 cv2 时仅做暗角校正，跳过几何校正
-
-### 降级策略
-
-| 情况 | 行为 |
-|------|------|
-| lensfunpy 未安装 | processor status=UNAVAILABLE，自动跳过 |
-| EXIF 提取失败 | 跳过，metadata 记录原因 |
-| 镜头不在 lensfun 数据库 | 跳过，metadata 记录 camera/lens |
-| cv2 未安装 | 仅做暗角校正，跳过几何校正 |
-
-### 配置
-
-```toml
-[processor_params.lens_correct]
-correct_distortion = true      # 几何畸变校正
-correct_vignetting = true      # 暗角校正
-correct_tca = true             # 横向色差校正
-distance = 10.0                # 拍摄距离（米）
-```
-
-### 元数据输出
-
-`metadata["lens_correct"]`：
-
-```python
-{
-    "camera": "ILCE-7M3",
-    "lens": "Sony FE 24-70mm f/2.8 GM",
-    "crop_factor": 1.0,
-    "focal_length": 35.0,
-    "aperture": 2.8,
-    "distance": 10.0,
-    "corrections": {
-        "vignetting": True,
-        "tca": True,
-        "distortion": True,
-    }
-}
-```
+详见 [lens-correction.md](lens-correction.md)
 
 ## 自动曝光算法
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
@@ -10,9 +11,8 @@ import pytest
 import shotline.processors  # noqa: F401
 from shotline.image import Encoding, ImageData
 from shotline.processor import ProcessorStatus, get_processor, list_processors
+from shotline.processors.lens_correct import _find_repo_db_files, _get_database
 from tests.conftest import SAMPLE_EXIF
-
-_has_lensfunpy = pytest.importorskip is not None  # just for clarity
 
 try:
     import lensfunpy  # noqa: F401
@@ -228,13 +228,40 @@ def test_lens_correct_metadata_fields():
 
 @_requires_lensfunpy
 def test_lens_correct_disable_distortion():
-    """correct_distortion=False skips distortion."""
+    """correct_distortion=False with TCA still applies distortion (TCA path includes it)."""
     image = _make_linear_with_exif()
     proc = get_processor("lens_correct")
+    # With TCA enabled (default), distortion is always included via subpixel_geometry_distortion
     result = proc.process(image, {"correct_distortion": False})
     meta = result.metadata["lens_correct"]
     if "corrections" in meta:
-        assert "distortion" not in meta["corrections"] or not meta["corrections"].get("distortion")
+        # TCA path forces distortion on
+        assert meta["corrections"].get("tca") is True
+        assert meta["corrections"].get("distortion") is True
+
+
+@_requires_lensfunpy
+def test_lens_correct_distortion_only_without_tca():
+    """correct_tca=False → single-channel remap, no TCA in output."""
+    image = _make_linear_with_exif()
+    proc = get_processor("lens_correct")
+    result = proc.process(image, {"correct_tca": False})
+    meta = result.metadata["lens_correct"]
+    if "corrections" in meta:
+        assert meta["corrections"].get("distortion") is True
+        assert "tca" not in meta["corrections"]
+
+
+@_requires_lensfunpy
+def test_lens_correct_no_geometry_without_tca_and_distortion():
+    """Both TCA and distortion disabled → only vignetting."""
+    image = _make_linear_with_exif()
+    proc = get_processor("lens_correct")
+    result = proc.process(image, {"correct_tca": False, "correct_distortion": False})
+    meta = result.metadata["lens_correct"]
+    if "corrections" in meta:
+        assert "tca" not in meta["corrections"]
+        assert "distortion" not in meta["corrections"]
 
 
 @_requires_lensfunpy
@@ -276,3 +303,75 @@ def test_lens_correct_vignetting_only_without_cv2():
         # No geometric corrections without cv2
         assert "distortion" not in corrections
         assert "tca" not in corrections
+
+
+# ── Database caching and repo DB loading ──
+
+
+@_requires_lensfunpy
+def test_get_database_caching():
+    """Database instance is cached — second call returns same object."""
+    import shotline.processors.lens_correct as mod
+
+    mod._db_cache = None
+    try:
+        db1 = _get_database()
+        db2 = _get_database()
+        assert db1 is db2
+    finally:
+        mod._db_cache = None
+
+
+def test_find_repo_db_files_returns_list():
+    """_find_repo_db_files returns a list (possibly empty if no XML yet)."""
+    result = _find_repo_db_files()
+    assert isinstance(result, list)
+    for path in result:
+        assert path.endswith(".xml")
+
+
+def test_find_repo_db_files_walks_to_project_root(tmp_path: Path):
+    """_find_repo_db_files walks up to pyproject.toml and finds XML files."""
+    fake_root = tmp_path / "project"
+    fake_root.mkdir()
+    (fake_root / "pyproject.toml").touch()
+    db_dir = fake_root / "data" / "lensfun-db"
+    db_dir.mkdir(parents=True)
+    (db_dir / "mil-sony.xml").write_text("<lensdatabase/>")
+    (db_dir / "compact-nikon.xml").write_text("<lensdatabase/>")
+
+    fake_module_dir = fake_root / "src" / "shotline" / "processors"
+    fake_module_dir.mkdir(parents=True)
+
+    real_resolve = Path.resolve
+
+    def patched_resolve(self: Path) -> Path:
+        if self.name == "lens_correct.py" and "shotline" in str(self):
+            return fake_module_dir / "lens_correct.py"
+        return real_resolve(self)
+
+    with patch.object(Path, "resolve", patched_resolve):
+        result = _find_repo_db_files()
+
+    assert len(result) == 2
+    assert all(p.endswith(".xml") for p in result)
+
+
+@_requires_lensfunpy
+def test_database_loads_extra_paths():
+    """Database with extra paths should have >= cameras/lenses as bundled."""
+    import lensfunpy
+
+    import shotline.processors.lens_correct as mod
+
+    bundled_db = lensfunpy.Database()
+    bundled_cams = len(bundled_db.cameras)
+    bundled_lenses = len(bundled_db.lenses)
+
+    mod._db_cache = None
+    try:
+        db = _get_database()
+        assert len(db.cameras) >= bundled_cams
+        assert len(db.lenses) >= bundled_lenses
+    finally:
+        mod._db_cache = None
