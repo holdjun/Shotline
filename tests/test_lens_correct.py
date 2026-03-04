@@ -228,16 +228,14 @@ def test_lens_correct_metadata_fields():
 
 @_requires_lensfunpy
 def test_lens_correct_disable_distortion():
-    """correct_distortion=False with TCA still applies distortion (TCA path includes it)."""
+    """correct_distortion=False with TCA → only TCA applied, distortion not reported."""
     image = _make_linear_with_exif()
     proc = get_processor("lens_correct")
-    # With TCA enabled (default), distortion is always included via subpixel_geometry_distortion
     result = proc.process(image, {"correct_distortion": False})
     meta = result.metadata["lens_correct"]
     if "corrections" in meta:
-        # TCA path forces distortion on
         assert meta["corrections"].get("tca") is True
-        assert meta["corrections"].get("distortion") is True
+        assert "distortion" not in meta["corrections"]
 
 
 @_requires_lensfunpy

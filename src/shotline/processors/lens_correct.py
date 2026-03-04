@@ -233,7 +233,8 @@ def _apply_corrections(
                         cv2.INTER_LANCZOS4,
                     )
                 applied["tca"] = True
-                applied["distortion"] = True
+                if correct_distortion:
+                    applied["distortion"] = True
         elif correct_distortion:
             # Distortion only (no TCA)
             remap_coords = mod.apply_geometry_distortion()
