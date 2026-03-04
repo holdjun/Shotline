@@ -219,7 +219,6 @@ def test_lens_correct_metadata_fields():
         assert "crop_factor" in meta
         assert "focal_length" in meta
         assert "aperture" in meta
-        assert "distance" in meta
         assert "corrections" in meta
 
 
@@ -271,17 +270,6 @@ def test_lens_correct_disable_vignetting():
     meta = result.metadata["lens_correct"]
     if "corrections" in meta:
         assert "vignetting" not in meta["corrections"] or not meta["corrections"].get("vignetting")
-
-
-@_requires_lensfunpy
-def test_lens_correct_custom_distance():
-    """Custom distance parameter is recorded in metadata."""
-    image = _make_linear_with_exif()
-    proc = get_processor("lens_correct")
-    result = proc.process(image, {"distance": 5.0})
-    meta = result.metadata["lens_correct"]
-    if "skipped" not in meta:
-        assert meta["distance"] == 5.0
 
 
 # ── Vignetting-only without cv2 ──

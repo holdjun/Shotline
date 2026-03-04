@@ -66,7 +66,7 @@ return image.replace(
 
 | 格式 | 编码 | 加载方式 | 值域 | 位深 |
 |------|------|----------|------|------|
-| RAW (.cr2/.nef/.arw/...) | **LINEAR** | rawpy, `gamma=(1,1)`, Blend | [0, ~0.5-0.8] (Blend WB 归一化后) | 16-bit |
+| RAW (.cr2/.nef/.arw/...) | **LINEAR** | rawpy, `gamma=(1,1)`, Blend | [0, <1.0] | 16-bit |
 | HEIF (.heic/.heif) | SRGB | pillow-heif | [0, 1] | 8 或 10-bit |
 | JPG (.jpg/.jpeg) | SRGB | Pillow | [0, 1] | 8-bit |
 | PNG (.png) | SRGB | Pillow | [0, 1] | 8 或 16-bit |
@@ -74,7 +74,7 @@ return image.replace(
 
 关键点：
 - RAW 用 `gamma=(1,1)` 输出线性数据，不烘焙 sRGB gamma，保留完整动态范围
-- Blend 高光恢复模式内部除以 max(WB) 防止溢出，导致整体偏暗——由下游 auto-EV 自动补偿
+- Blend 高光恢复输出整体偏暗，由下游 auto-EV 自动补偿
 - HEIF 检测 iPhone 10-bit 照片模式
 - PNG/TIFF 支持 16-bit 灰度/RGB 加载
 
@@ -87,8 +87,8 @@ photo.cr2
   │
   ▼  rawpy: Bayer 分析 → Blend 高光恢复 → DHT demosaic → gamma=(1,1), 16-bit
   │
-  ImageData(encoding=LINEAR, 值域 [0.0, ~0.5-0.8])
-  │  线性光数据，Blend WB 归一化后整体偏暗
+  ImageData(encoding=LINEAR, Blend 输出偏暗)
+  │  线性光数据，auto-EV 会自动补偿亮度
   │
   ▼  [5] lens_correct
   │  lensfunpy 镜头校正：暗角 → TCA + 畸变

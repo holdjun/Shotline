@@ -27,29 +27,16 @@ cache_dir = "~/.cache/shotline/models"
 # correct_distortion = true      # 几何畸变校正
 # correct_vignetting = true      # 暗角（光照衰减）校正
 # correct_tca = true             # 横向色差校正
-# distance = 10.0                # 拍摄距离（米），影响暗角校正精度
 
 [processor_params.raw_develop]
 # ── Bayer 域参数（传给 _load_raw）──
 # demosaic_algorithm = "DHT"         # AHD, DHT, AAHD, DCB, PPG, VNG (LMMSE/AMAZE need GPL packs)
 # highlight_mode = "Blend"           # 默认 Blend（平滑高光恢复）; 可选 "Clip"/"Rebuild"
 # fbdd_noise_reduction = "Off"       # 默认 Off（降噪交给 post-demosaic）; 可选 "Light"/"Full"
-# exp_preserve_highlights = 0.75     # 曝光补偿时的高光保护 (0-1)
-# chromatic_aberration = [1.0, 1.0]  # [red_scale, blue_scale]
-# noise_thr = null                   # 小波降噪阈值
-# median_filter_passes = 0           # 中值滤波轮次
-# ── 线性空间参数 ──
-# auto_expose = true                 # log-average 自动曝光（校正到 18% gray）
-# ev = 0.0                           # 手动 EV（叠加在 auto 之上）
-# bright = 1.0                       # 亮度乘数
-# ── Hable filmic 色调映射 ──
-# white_point = 11.2                 # Hable 白点
-# hable_A = 0.15                     # shoulder 强度
-# hable_B = 0.50                     # 线性强度
-# hable_C = 0.10                     # 线性角度
-# hable_D = 0.20                     # toe 强度
-# hable_E = 0.02                     # toe 分子
-# hable_F = 0.30                     # toe 分母
+# ── 曝光 ──
+# ev = 0.0                           # 手动 EV（叠加在 auto-EV 之上）
+# auto_expose = true                 # 自动曝光；关闭则纯手动 ev
+# 其余参数（Hable 色调映射、rawpy 透传等）见 docs/raw-loading.md，基本不需要调整
 
 [processor_params.exposure_adjust]
 # JPG/HEIF 轻微 S-curve 调整（当前无可配置参数）
