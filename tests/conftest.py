@@ -139,7 +139,6 @@ def make_bayer(
     width: int = 100,
     height: int = 100,
     saturation_ratio: float = 0.0,
-    noise_std: float = 0.001,
     black_level: int = 512,
     white_level: int = 16383,
     seed: int = 42,
@@ -147,23 +146,13 @@ def make_bayer(
     """Create synthetic Bayer data for testing _analyze_bayer.
 
     Returns uint16 array of shape (height, width) simulating raw_image_visible.
-    The top 20% of rows are dark (near black level) to provide dark-region
-    noise measurement. The rest is mid-gray signal.
+    Mid-gray signal with optional saturated pixel injection.
     """
     rng = np.random.default_rng(seed)
     dynamic_range = white_level - black_level
 
-    bayer = np.empty((height, width), dtype=np.float64)
-
-    # Dark region (top 20%): near black level + noise
-    dark_rows = height // 5
-    dark_noise = rng.normal(0, noise_std * dynamic_range, (dark_rows, width))
-    bayer[:dark_rows] = dark_noise
-
-    # Mid-gray region (bottom 80%)
-    mid_rows = height - dark_rows
-    mid_noise = rng.normal(0, noise_std * dynamic_range, (mid_rows, width))
-    bayer[dark_rows:] = 0.3 * dynamic_range + mid_noise
+    # Mid-gray base signal with slight noise
+    bayer = 0.3 * dynamic_range + rng.normal(0, 0.001 * dynamic_range, (height, width))
 
     # Inject saturated pixels
     if saturation_ratio > 0:

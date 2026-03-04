@@ -1,4 +1,4 @@
-# RAW 加载与自适应处理流水线
+# RAW 加载与处理流水线
 
 ## 概述
 
@@ -11,14 +11,12 @@ JPG/HEIF 走独立路径：`exposure_adjust`（轻微 S-curve）。
     │
     ▼
 _load_raw()
-    ├─ _analyze_bayer() — 分析饱和率、噪声级别
-    ├─ 自适应选择: 有过曝→Blend, 无过曝→Clip; 高噪声→FBDD Full
-    ├─ rawpy.postprocess()
-    ├─ 若 Blend: WB 补偿恢复亮度，保留 HDR 高光 (>1.0)
+    ├─ _analyze_bayer() — 计算饱和率（诊断 metadata）
+    ├─ rawpy.postprocess() — Blend 高光恢复, FBDD Off, DHT demosaic
     └─ _extract_exif() — 提取相机/镜头 EXIF (make, model, focal, aperture)
     │
     ▼
-ImageData(LINEAR, [0, ~1.5-2.0], metadata.raw_loader.exif)
+ImageData(LINEAR, metadata.raw_loader.exif)
     │
     ▼
 lens_correct (order=5, 线性空间)
@@ -55,38 +53,38 @@ exposure_adjust → 轻微 S-curve
 ImageData(SRGB, [0, 1])
 ```
 
-## 自适应 Bayer 分析
+## 高光恢复策略
 
-`_analyze_bayer(raw)` 在 `postprocess()` 之前分析 `raw.raw_image_visible`：
+固定使用 **Blend** 模式（rawpy `highlight_mode=2`）。
+
+**为什么不用 Clip**：Clip 模式在任一通道过曝时硬裁切到白电平，其他通道保持原值，导致高光边缘出现色彩偏移（如红花变青）。所有商业 RAW 处理器（Adobe Lightroom、Capture One、RawTherapee）默认执行高光重建，无一默认硬裁切。
+
+**Blend 的工作原理**：将所有通道的 WB 乘子除以 `max(WB)`，确保 WB 应用后不会溢出。过曝像素平滑过渡到中性白，无色彩伪影。对未过曝图片，Blend 的输出与 Clip 数学等价（WB 归一化是纯线性缩放，不改变通道比例）。
+
+**亮度影响**：Blend 的 WB 归一化会降低整体亮度（约为 `max(WB)/min(WB)` 倍，Sony 约 2-3x）。这由下游 `_compute_auto_ev()` 自动吸收——auto-EV 基于实际亮度计算曝光补偿，Blend 模式的欠曝自动被校正。
+
+用户可通过 `highlight_mode = "Clip"` 或 `highlight_mode = "Rebuild"` 覆盖默认值。
+
+## 降噪策略
+
+固定使用 **FBDD Off**（不做 pre-demosaic 降噪）。
+
+**原因**：
+- 2024 学术共识（Inverse Problems and Imaging）：中低噪声应先 demosaic 后 denoise
+- Pre-demosaic 空间滤波破坏 Bayer 域的通道间相关性，导致 demosaic 产生棋盘伪影和细节损失
+- 所有商业 RAW 处理器（Adobe、darktable、Capture One）默认不做 pre-demosaic 空间降噪
+- Pipeline 已有 post-demosaic NAFNet denoiser (order=20)，FBDD 冗余
+
+用户可通过 `fbdd_noise_reduction = "Light"` 或 `"Full"` 覆盖。
+
+## Bayer 分析
+
+`_analyze_bayer(raw)` 在 `postprocess()` 之前分析 `raw.raw_image_visible`，计算 `saturation_ratio`（传感器接近饱和的像素比例）作为诊断 metadata：
 
 ```python
 normalized = (bayer - black_level) / (white_level - black_level)
 saturation_ratio = (normalized >= 0.95).mean()
-noise_std = normalized[normalized < 0.05].std()
 ```
-
-| 指标 | 默认阈值 | 决策 | 配置键 |
-|------|----------|------|--------|
-| 饱和率 >= threshold | `0.005` | Blend + WB 补偿 | `saturation_threshold` |
-| 饱和率 < threshold | `0.005` | Clip | `saturation_threshold` |
-| 噪声 < low | `0.003` | FBDD Off | `noise_low` |
-| low <= 噪声 < high | `0.003-0.008` | FBDD Light | `noise_low`, `noise_high` |
-| 噪声 >= high | `0.008` | FBDD Full | `noise_high` |
-
-所有阈值均可通过 `[processor_params.raw_develop]` 配置，省略时使用默认值。用户也可直接设置 `highlight_mode` / `fbdd_noise_reduction` 覆盖自适应选择。
-
-## WB 补偿原理
-
-Blend 高光恢复将所有通道除以 `max(WB multiplier)` 防止溢出，导致整图变暗约 `max(WB)/min(WB)` 倍（Sony 约 2.1-2.8x）。
-
-`_load_raw` 在 Blend 解码后乘以补偿系数：
-
-```python
-wb_compensation = max(camera_wb[:3]) / min(camera_wb[:3])
-data *= wb_compensation  # 恢复中间调，高光保留 >1.0 HDR 数据
-```
-
-Clip 模式不需要补偿（`wb_compensation = 1.0`）。
 
 ## EXIF 提取
 
@@ -145,11 +143,8 @@ f(x) = ((x*(A*x + C*B) + D*E) / (x*(A*x + B) + D*F)) - E/F
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `demosaic_algorithm` | str | `"DHT"` | Bayer 域插值算法 |
-| `highlight_mode` | str/null | `null`（自适应） | 省略=自适应, 设置=强制 |
-| `fbdd_noise_reduction` | str/null | `null`（自适应） | 省略=自适应, 设置=强制 |
-| `saturation_threshold` | float | `0.005` | Bayer 饱和率阈值 |
-| `noise_low` | float | `0.003` | FBDD Off/Light 分界 |
-| `noise_high` | float | `0.008` | FBDD Light/Full 分界 |
+| `highlight_mode` | str | `"Blend"` | 高光恢复: "Blend"/"Clip"/"Rebuild" |
+| `fbdd_noise_reduction` | str | `"Off"` | Pre-demosaic 降噪: "Off"/"Light"/"Full" |
 | `ev` | float | `0.0` | 曝光补偿（exp_shift） |
 | `exp_preserve_highlights` | float | `0.75` | 高光保护 (0-1) |
 | `chromatic_aberration` | list/null | `null` | 色差校正 |
@@ -183,13 +178,10 @@ f(x) = ((x*(A*x + C*B) + D*E) / (x*(A*x + B) + D*F)) - E/F
 ```python
 {
     "camera_whitebalance": [2.1, 1.0, 1.5, 1.0],
-    "bayer_analysis": {
-        "saturation_ratio": 0.018,
-        "noise_std": 0.002,
-        "recommended_highlight": "Blend",
-        "recommended_fbdd": "Off"
-    },
-    "wb_compensation": 2.1,
+    "bayer_analysis": {"saturation_ratio": 0.018},
+    "highlight_mode": "Blend",
+    "fbdd_noise_reduction": "Off",
+    "demosaic_algorithm": "DHT",
     ...
 }
 ```
@@ -202,9 +194,8 @@ demosaic_algorithm = "DHT"
 auto_expose = true
 ev = 0.5
 bright = 1.2
-# 自定义阈值
-saturation_threshold = 0.01
-noise_high = 0.01
+# 强制 Clip 高光（覆盖默认 Blend）
+# highlight_mode = "Clip"
 # 自定义 Hable
 white_point = 8.0
 hable_D = 0.25  # 增大 toe 提升暗部

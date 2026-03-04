@@ -30,18 +30,14 @@ cache_dir = "~/.cache/shotline/models"
 # distance = 10.0                # 拍摄距离（米），影响暗角校正精度
 
 [processor_params.raw_develop]
-# ── Bayer 域参数（传给 _load_raw，省略则自适应选择）──
+# ── Bayer 域参数（传给 _load_raw）──
 # demosaic_algorithm = "DHT"         # AHD, DHT, AAHD, DCB, PPG, VNG (LMMSE/AMAZE need GPL packs)
-# highlight_mode = ...               # 省略=自适应(Bayer分析), "Clip"/"Blend"=强制
-# fbdd_noise_reduction = ...         # 省略=自适应(噪声分析), "Off"/"Light"/"Full"=强制
+# highlight_mode = "Blend"           # 默认 Blend（平滑高光恢复）; 可选 "Clip"/"Rebuild"
+# fbdd_noise_reduction = "Off"       # 默认 Off（降噪交给 post-demosaic）; 可选 "Light"/"Full"
 # exp_preserve_highlights = 0.75     # 曝光补偿时的高光保护 (0-1)
 # chromatic_aberration = [1.0, 1.0]  # [red_scale, blue_scale]
 # noise_thr = null                   # 小波降噪阈值
 # median_filter_passes = 0           # 中值滤波轮次
-# ── 自适应阈值（可配置，用于 Bayer 分析）──
-# saturation_threshold = 0.005       # 饱和率 >= 此值 → Blend（默认 0.5%）
-# noise_low = 0.003                  # 噪声 < 此值 → FBDD Off
-# noise_high = 0.008                 # 噪声 >= 此值 → FBDD Full; 之间 → Light
 # ── 线性空间参数 ──
 # auto_expose = true                 # log-average 自动曝光（校正到 18% gray）
 # ev = 0.0                           # 手动 EV（叠加在 auto 之上）

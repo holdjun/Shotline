@@ -12,7 +12,6 @@ from shotline.image import Encoding, ImageData
 from shotline.io import (
     SUPPORTED_EXTENSIONS,
     _analyze_bayer,
-    _compute_wb_compensation,
     _extract_exif,
     detect_format,
     load_image,
@@ -105,71 +104,29 @@ def test_supported_extensions_complete():
 
 
 def test_analyze_bayer_clean_sensor():
-    """Low saturation + low noise → Clip + Off."""
-    bayer = make_bayer(saturation_ratio=0.0, noise_std=0.001)
+    """Clean sensor reports low saturation ratio."""
+    bayer = make_bayer(saturation_ratio=0.0)
     mock_raw = MockRawPy(bayer_data=bayer)
     analysis = _analyze_bayer(mock_raw)
 
     assert analysis["saturation_ratio"] < 0.005
-    assert analysis["recommended_highlight"] == "Clip"
-    assert analysis["recommended_fbdd"] == "Off"
+    assert "saturation_ratio" in analysis
 
 
 def test_analyze_bayer_saturated():
-    """High saturation → Blend."""
-    bayer = make_bayer(saturation_ratio=0.02, noise_std=0.001)
+    """Saturated sensor reports high saturation ratio."""
+    bayer = make_bayer(saturation_ratio=0.02)
     mock_raw = MockRawPy(bayer_data=bayer)
     analysis = _analyze_bayer(mock_raw)
 
     assert analysis["saturation_ratio"] >= 0.005
-    assert analysis["recommended_highlight"] == "Blend"
-
-
-def test_analyze_bayer_noisy():
-    """High noise → Full FBDD."""
-    bayer = make_bayer(saturation_ratio=0.0, noise_std=0.015)
-    mock_raw = MockRawPy(bayer_data=bayer)
-    analysis = _analyze_bayer(mock_raw)
-
-    assert analysis["noise_std"] >= 0.008
-    assert analysis["recommended_fbdd"] == "Full"
-
-
-def test_analyze_bayer_medium_noise():
-    """Medium noise → Light FBDD."""
-    bayer = make_bayer(saturation_ratio=0.0, noise_std=0.005)
-    mock_raw = MockRawPy(bayer_data=bayer)
-    analysis = _analyze_bayer(mock_raw)
-
-    assert 0.003 <= analysis["noise_std"] < 0.008
-    assert analysis["recommended_fbdd"] == "Light"
-
-
-# ── WB compensation tests ──
-
-
-def test_wb_compensation_typical():
-    """Typical Sony WB gives ~2.1x compensation."""
-    wb = [2.1, 1.0, 1.5, 1.0]
-    comp = _compute_wb_compensation(wb)
-    assert comp == pytest.approx(2.1, rel=0.01)
-
-
-def test_wb_compensation_equal():
-    """Equal WB channels → 1.0 compensation."""
-    assert _compute_wb_compensation([1.0, 1.0, 1.0, 1.0]) == pytest.approx(1.0)
-
-
-def test_wb_compensation_zeros():
-    """All-zero WB → 1.0 (safe fallback)."""
-    assert _compute_wb_compensation([0.0, 0.0, 0.0, 0.0]) == 1.0
 
 
 # ── _load_raw mock tests ──
 
 
 def test_load_raw_default_params():
-    """Default params produce LINEAR ImageData with bayer_analysis."""
+    """Default params: Blend highlight, FBDD Off, no WB compensation."""
     mock_raw = MockRawPy()
     with patch("rawpy.imread", return_value=mock_raw):
         image = load_image(Path("test.arw"))
@@ -182,57 +139,29 @@ def test_load_raw_default_params():
 
     meta = image.metadata["raw_loader"]
     assert meta["demosaic_algorithm"] == "DHT"
+    assert meta["highlight_mode"] == "Blend"
+    assert meta["fbdd_noise_reduction"] == "Off"
     assert meta["used_camera_wb"] is True
     assert meta["used_auto_wb"] is False
     assert "bayer_analysis" in meta
     assert "saturation_ratio" in meta["bayer_analysis"]
-
-
-def test_load_raw_adaptive_clip():
-    """Clean sensor auto-selects Clip mode (no WB compensation)."""
-    bayer = make_bayer(saturation_ratio=0.0, noise_std=0.001)
-    mock_raw = MockRawPy(bayer_data=bayer)
-    with patch("rawpy.imread", return_value=mock_raw):
-        image = load_image(Path("test.arw"))
-
-    meta = image.metadata["raw_loader"]
-    assert meta["highlight_mode"] == "Clip"
-    assert meta["wb_compensation"] == 1.0
-
-
-def test_load_raw_adaptive_blend_with_compensation():
-    """Saturated sensor auto-selects Blend with WB compensation."""
-    bayer = make_bayer(saturation_ratio=0.02, noise_std=0.001)
-    mock_raw = MockRawPy(bayer_data=bayer)
-    with patch("rawpy.imread", return_value=mock_raw):
-        image = load_image(Path("test.arw"))
-
-    meta = image.metadata["raw_loader"]
-    assert meta["highlight_mode"] == "Blend"
-    assert meta["wb_compensation"] > 1.0
-    # Data should have values > 1.0 from WB compensation
-    assert image.data.max() > 1.0
+    assert "wb_compensation" not in meta
 
 
 def test_load_raw_user_override_highlight():
-    """User explicit highlight_mode overrides adaptive choice."""
-    bayer = make_bayer(saturation_ratio=0.0, noise_std=0.001)
-    mock_raw = MockRawPy(bayer_data=bayer)
+    """User explicit highlight_mode overrides default Blend."""
+    mock_raw = MockRawPy()
     with patch("rawpy.imread", return_value=mock_raw):
-        # Bayer says Clip, but user forces Blend
-        image = load_image(Path("test.arw"), raw_params={"highlight_mode": "Blend"})
+        image = load_image(Path("test.arw"), raw_params={"highlight_mode": "Clip"})
 
     meta = image.metadata["raw_loader"]
-    assert meta["highlight_mode"] == "Blend"
-    assert meta["wb_compensation"] > 1.0
+    assert meta["highlight_mode"] == "Clip"
 
 
 def test_load_raw_user_override_fbdd():
-    """User explicit fbdd overrides adaptive choice."""
-    bayer = make_bayer(saturation_ratio=0.0, noise_std=0.001)
-    mock_raw = MockRawPy(bayer_data=bayer)
+    """User explicit fbdd overrides default Off."""
+    mock_raw = MockRawPy()
     with patch("rawpy.imread", return_value=mock_raw):
-        # Bayer says Off, but user forces Full
         image = load_image(Path("test.arw"), raw_params={"fbdd_noise_reduction": "Full"})
 
     meta = image.metadata["raw_loader"]
@@ -284,7 +213,6 @@ def test_load_raw_metadata_fields():
         "exp_preserve_highlights",
         "used_camera_wb",
         "used_auto_wb",
-        "wb_compensation",
         "bayer_analysis",
     }
     # "exif" is optional (only present when EXIF extraction succeeds)
@@ -356,15 +284,13 @@ def test_load_real_arw_with_ev():
 
 @_skip_unless_exists(_ARW_2)
 @pytest.mark.slow
-def test_load_real_arw_adaptive_highlight():
-    """DSC04188 has overexposed highlights → adaptive selects Blend."""
+def test_load_real_arw_blend_highlight():
+    """DSC04188 loads with fixed Blend highlight mode."""
     image = load_image(_ARW_2)
     meta = image.metadata["raw_loader"]
-    analysis = meta["bayer_analysis"]
-    # DSC04188 is known to have ~1.8% saturation
-    assert analysis["saturation_ratio"] > 0.005
     assert meta["highlight_mode"] == "Blend"
-    assert meta["wb_compensation"] > 1.0
+    assert "bayer_analysis" in meta
+    assert "saturation_ratio" in meta["bayer_analysis"]
 
 
 @_skip_unless_exists(_JPG)
