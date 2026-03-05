@@ -21,14 +21,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-lens = [
-    "lensfunpy>=1.16",
-    "exifread>=3.0",
-]
 ai = [
     "torch>=2.0",
     "torchvision>=0.15",
-    "opencv-python-headless>=4.8",
     "ultralytics>=8.0",
 ]
 dev = [
@@ -36,8 +31,11 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.1",
     "mypy>=1.5",
+    "lensfunpy>=1.16",
+    "exifread>=3.0",
+    "opencv-python-headless>=4.8",
 ]
-all = ["shotline[lens,ai,dev]"]
+all = ["shotline[ai,dev]"]
 
 [project.scripts]
 shotline = "shotline.cli:main"
@@ -60,3 +58,8 @@ markers = ["slow: marks tests that require real image files (deselect with '-m \
 [tool.mypy]
 python_version = "3.11"
 strict = true
+
+[dependency-groups]
+dev = [
+    "colour-science>=0.4.7",
+]

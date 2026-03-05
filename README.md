@@ -10,7 +10,7 @@ Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 git clone https://github.com/holdjun/Shotline.git
 cd Shotline
 uv sync                 # core
-uv sync --extra lens    # + lens correction
+uv sync --extra dev     # + dev tools & lens correction
 uv sync --extra ai      # + AI models
 uv sync --extra all     # everything
 ```

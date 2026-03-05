@@ -1,161 +1,193 @@
-# ImageData 数据结构与流水线数据流
+# 图像处理数据流
 
-## 核心数据结构
+RAW 文件经过信号级解码、光学校正、曝光与色调映射输出 sRGB；JPEG/HEIF 经过轻度曝光调整后进入同一后处理流水线。
 
-整个 pipeline 只有一个核心数据结构 `ImageData`，从加载到保存全程流转：
+> 色彩科学基础（Encoding vs ColorSpace、线性域运算、tone mapping、色域转换）见 [color-science-primer.md](color-science-primer.md)。
 
-```python
-class ImageData:
-    data: np.ndarray       # (H, W, 3) float32 RGB 像素数据
-    encoding: Encoding      # LINEAR 或 SRGB
-    source_format: str      # "raw" / "jpg" / "heif" / "png" / "tiff"
-    source_bit_depth: int   # 8 / 10 / 12 / 14 / 16
-    original_path: Path     # 原始文件路径
-    metadata: dict          # 累积的处理器元数据
-```
-
-### 字段说明
-
-| 字段 | 用途 |
-|------|------|
-| `data` | 实际的像素数据，统一为 float32 三通道 RGB |
-| `encoding` | 标记数据当前的编码状态——LINEAR（线性光）或 SRGB（gamma 编码） |
-| `source_format` | 记录原始文件格式，用于 pipeline 中按格式跳过不适用的处理器 |
-| `source_bit_depth` | 记录原始位深（RAW 常见 12/14/16，HEIF 8/10，JPG 8），用于保存时选择输出位深 |
-| `metadata` | 每个处理器执行后往里追加自己的处理信息，贯穿整个 pipeline |
-
-### 编码状态
-
-```python
-class Encoding(Enum):
-    LINEAR = "linear"   # 线性光，值域 [0.0, 可能 > 1.0]
-    SRGB = "srgb"       # sRGB gamma 编码，值域 [0.0, 1.0]
-```
-
-- **LINEAR**: 像素值与物理光照强度成正比。RAW 文件加载后的状态，高光区域值可能超过 1.0
-- **SRGB**: 经过 sRGB gamma 曲线编码。人眼感知更均匀，所有 AI 模型期望的输入格式
-
-### 不可变更新
-
-处理器不直接修改 `ImageData`，而是通过 `replace()` 返回新实例：
-
-```python
-# 处理器内部
-return image.replace(
-    data=new_data,
-    metadata={"white_balance": {"temperature": 5500}}
-)
-```
-
-`replace()` 会自动将新 metadata 与已有的合并，确保每一步的处理痕迹都保留。
-
-## sRGB 传递函数
-
-按 IEC 61966-2-1 标准实现，不是简单的 gamma 2.2 近似：
-
-- `linear_to_srgb()`: 低值段线性（`x * 12.92`）+ 高值段幂函数（`1.055 * x^(1/2.4) - 0.055`）
-- `srgb_to_linear()`: 上述函数的逆运算
-
-`ImageData` 提供便捷方法：
-- `to_linear()` — sRGB → 线性光，已经是 LINEAR 则返回自身
-- `to_srgb()` — 线性光 → sRGB 并裁切到 [0, 1]，已经是 SRGB 则返回自身
-
-## 加载策略
-
-不同格式加载后的状态不同：
-
-| 格式 | 编码 | 加载方式 | 值域 | 位深 |
-|------|------|----------|------|------|
-| RAW (.cr2/.nef/.arw/...) | **LINEAR** | rawpy, `gamma=(1,1)`, Blend | [0, <1.0] | 16-bit |
-| HEIF (.heic/.heif) | SRGB | pillow-heif | [0, 1] | 8 或 10-bit |
-| JPG (.jpg/.jpeg) | SRGB | Pillow | [0, 1] | 8-bit |
-| PNG (.png) | SRGB | Pillow | [0, 1] | 8 或 16-bit |
-| TIFF (.tiff/.tif) | SRGB | Pillow | [0, 1] | 8 或 16-bit |
-
-关键点：
-- RAW 用 `gamma=(1,1)` 输出线性数据，不烘焙 sRGB gamma，保留完整动态范围
-- Blend 高光恢复输出整体偏暗，由下游 auto-EV 自动补偿
-- HEIF 检测 iPhone 10-bit 照片模式
-- PNG/TIFF 支持 16-bit 灰度/RGB 加载
-
-## 数据流
-
-### RAW 路径
+## 行业对照
 
 ```
-photo.cr2
-  │
-  ▼  rawpy: Bayer 分析 → Blend 高光恢复 → DHT demosaic → gamma=(1,1), 16-bit
-  │
-  ImageData(encoding=LINEAR, Blend 输出偏暗)
-  │  线性光数据，auto-EV 会自动补偿亮度
-  │
-  ▼  [5] lens_correct
-  │  lensfunpy 镜头校正：暗角 → TCA + 畸变
-  │  仍然 LINEAR（线性空间做暗角补偿更精确）
-  │
-  ▼  [10] raw_develop
-  │  auto-EV 曝光补偿 → Hable filmic tone map → linear_to_srgb()
-  │  ★ 变为 SRGB [0, 1] ★
-  │
-  ▼  [20+] 后续处理器（降噪、校正、调色等，全部在 SRGB 空间）
-  │
-  ▼  save_image → output.jpg
+Lightroom Pipeline                     Shotline Pipeline
+─────────────────                     ─────────────────
+1. RAW Decode                         ┐
+2. Black Level Subtraction            │
+3. Linearization                      │  rawpy.postprocess()
+4. White Balance                      │  一次调用完成
+5. Demosaic (+ highlight recovery)    │  输出 linear ProPhoto RGB
+6. Camera Profile / Color Matrix      ┘
+   ─── 线性 ProPhoto RGB ───
+7. Lens Correction (optical)           lens_correct (order=5)
+8. Exposure Compensation               raw_develop: auto_ev + ev
+   ─── 线性域 → 感知域 分界 ───
+9.  Tone Curve                         raw_develop: hable_filmic
+10. Color Space Conversion             ProPhoto → sRGB 色域映射
+11. Transfer Function                  linear → sRGB 传递函数
+   ─── sRGB ───
+12. White Balance (残差修正)           white_balance (order=40)
+13. Color Grading                      color_grade (order=50)
+14. Sharpening + NR                    denoise (order=20)
+15. Output                             save_image
 ```
 
-### JPG / HEIF / PNG 路径
+## RAW 路径
 
 ```
-photo.jpg
+photo.arw / .cr2 / .dng
   │
-  ▼  Pillow 加载, /255.0 归一化
+  ▼  io._load_raw()
   │
-  ImageData(encoding=SRGB, 值域 [0.0, 1.0])
+  │  rawpy.postprocess() 内部完成：
+  │    ① RAW Decode — 厂商格式解包
+  │    ② Black Level Subtraction — 减去传感器黑电平
+  │    ③ Linearization — 非线性传感器响应校正为线性
+  │    ④ White Balance — camera WB 通道增益（线性域乘法）
+  │    ⑤ Demosaic — DHT 插值 + Blend 高光恢复
+  │    ⑥ Color Matrix — sensor RGB → ProPhoto RGB
   │
-  ▼  [5] lens_correct — 跳过 (supported_inputs=["raw"])
-  ▼  [10] raw_develop — 跳过 (supported_inputs=["raw"])
+  │  输出 float32 (H,W,3)，值域 [0, <1.0]（Blend 除以 max(WB) 导致偏暗）
   │
-  ▼  [11] exposure_adjust
-  │  轻微 S 曲线: 微弱提亮暗部、压制高光
-  │  仍然 SRGB
+  ▼  ImageData(LINEAR, ProPhoto RGB)
   │
-  ▼  [20+] 后续处理器（降噪、校正、调色等）
+  │  ┌─────────────────────────────────────────────────┐
+  │  │  线性 ProPhoto RGB 空间                           │
+  │  │  宽色域保护饱和色不被裁切，线性域保证物理精确     │
+  │  └─────────────────────────────────────────────────┘
   │
-  ▼  save_image → output.jpg
+  ▼  [order=5] lens_correct ✅
+  │  processors/lens_correct.py → LensCorrectProcessor.process()
+  │
+  │  _apply_corrections():
+  │    1. 暗角校正 — lensfun apply_color_modification()，像素亮度乘法
+  │    2. TCA + 畸变 — lensfun apply_subpixel_geometry_distortion() + cv2.remap()
+  │    3. 黑边裁切 — _auto_crop_black_border()
+  │
+  ▼  ImageData(LINEAR, ProPhoto RGB, 光学校正后)
+  │
+  ▼  [order=10] raw_develop 🔧 需未来确认
+  │  processors/raw_develop.py → RawDevelopProcessor.process()
+  │
+  │  Step 1: 自动曝光
+  │    _compute_auto_ev() — Reinhard scene key → 18% gray
+  │    data *= 2^auto_ev
+  │
+  │  Step 2: 手动 EV 偏移
+  │    data *= 2^ev（叠加在 auto_ev 之上）
+  │
+  │  Step 3: Hable filmic tone map
+  │    _hable_filmic() — 线性 HDR [0, ∞) → [0, 1]
+  │    ProPhoto 宽色域下 desaturation 更渐进（见 primer §3）
+  │
+  │  Step 4: 色域转换 + 传递函数
+  │    a. ProPhoto → sRGB 色域映射（3×3 矩阵 + gamut clipping）
+  │    b. linear → sRGB 传递函数
+  │
+  │
+  │  ★ 从这里开始：色域 = sRGB，编码 = sRGB gamma ★
+  │
+  ▼  ImageData(SRGB, [0, 1])
+  │
+  │  ┌─────────────────────────────────────────────┐
+  │  │  sRGB 空间                                    │
+  │  │  所有 AI 模型的训练数据都是 sRGB               │
+  │  └─────────────────────────────────────────────┘
+  │
+  ▼  [order=20] denoise 🔲 未实现
+  │  processors/denoise.py → DenoiseProcessor
+  │  AI 降噪（NAFNet）
+  │
+  ▼  [order=30] horizon 🔲 未实现
+  │  processors/horizon.py → HorizonProcessor
+  │  水平线校正
+  │
+  ▼  [order=40] white_balance 🔲 未实现
+  │  processors/white_balance.py → WhiteBalanceProcessor
+  │  白平衡残差修正（AI WB 或手动色温偏移）
+  │
+  ▼  [order=50] color_grade 🔲 未实现
+  │  processors/color_grade.py → ColorGradeProcessor
+  │  色彩分级（3DLUT AI）
+  │
+  ▼  [order=60] auto_crop 🔲 未实现
+  │  processors/auto_crop.py → AutoCropProcessor
+  │  智能构图裁切（YOLOv8）
+  │
+  ▼  io.save_image() → output.jpg
 ```
 
-### 汇合点
+## JPEG / HEIF 路径
 
-**RAW 和非 RAW 路径通过互斥的处理器各自到达 SRGB：**
-- RAW → `raw_develop`（order 10）：auto-EV + Hable filmic + linear_to_srgb()
-- JPG/HEIF/PNG/TIFF → `exposure_adjust`（order 11）：轻微 S 曲线
+```
+photo.jpg / .heic
+  │
+  ▼  io._load_standard() 或 io._load_heif()
+  │  Pillow / pillow-heif 加载，归一化到 float32 [0, 1]
+  │
+  ▼  ImageData(SRGB, [0, 1])
+  │
+  ▼  [order=5]  lens_correct — 跳过（supported_inputs=["raw"]）
+  ▼  [order=10] raw_develop — 跳过（supported_inputs=["raw"]）
+  │
+  ▼  [order=11] exposure_adjust ✅
+  │  processors/exposure_adjust.py → ExposureAdjustProcessor.process()
+  │  _mild_exposure_adjust() — 轻度 S 曲线，微提暗部微压高光
+  │
+  ▼  [order=20+] 与 RAW 路径汇合，进入相同的 sRGB 后处理流水线
+  │  denoise → horizon → white_balance → color_grade → auto_crop
+  │
+  ▼  io.save_image() → output.jpg
+```
 
-从 order 20 开始，无论输入是什么格式，数据都统一为 SRGB [0, 1]，后续处理器在同一个标准空间工作。
+## 汇合点
 
-## 为什么 RAW 要保持 LINEAR
+RAW 和 JPEG/HEIF 通过各自的前端处理到达统一的 sRGB [0, 1] 空间：
 
-RAW 文件的核心价值是**动态范围**。传感器记录的是线性光强度，12-14 bit 的数据中包含了大量高光和暗部细节。
+- **RAW** → `raw_develop`（order=10）：auto_ev + Hable filmic + linear_to_srgb
+- **JPEG/HEIF** → `exposure_adjust`（order=11）：轻度 S 曲线
 
-如果加载时直接应用 sRGB gamma：
-- 高光区域被裁切到 1.0，过曝部分数据永久丢失
-- 暗部被 gamma 曲线压缩，量化精度降低
+从 order=20 开始，所有格式在同一个 sRGB 空间里经过相同的后处理器。
 
-保持 LINEAR 编码到 `raw_develop` 阶段：
-- 线性空间做曝光补偿，`data * 2` 就是 +1EV，物理上精确
-- Hable filmic 曲线优雅地压缩动态范围，高光自然滚降而非硬裁切
+## 色彩空间分区
 
-## Pipeline 跳过逻辑
+### ProPhoto 线性域（rawpy → sRGB 转换之前）
 
-每个处理器执行前经过两道检查：
+rawpy 输出到 sRGB 转换之前的全部操作都在线性 ProPhoto RGB 空间。宽色域保护饱和色不被裁切，线性域保证物理运算精确。
 
-1. **格式匹配** — 处理器的 `supported_inputs` 与 `image.source_format` 对比。`["any"]` 匹配一切，`["raw"]` 只匹配 RAW 文件
-2. **状态检查** — `NEEDS_MODEL`（模型未下载）或 `UNAVAILABLE`（缺少依赖）的处理器跳过
+| 阶段 | 色彩空间依赖 |
+|------|-------------|
+| lens_correct — 暗角/TCA/畸变 | 乘法/几何变换，色彩空间无关 |
+| auto_ev — 曝光补偿 | 线性域乘法，色彩空间无关 |
+| hable_filmic — tone map | 受色域影响：ProPhoto 下 desaturation 更渐进 |
 
-跳过的步骤记入 `PipelineResult.skipped`，执行的步骤记入 `steps_run`（含耗时和当前编码状态）。
+### sRGB（色域转换 + 传递函数之后）
 
-## 保存
+tone map 后经过色域映射（ProPhoto → sRGB）和传递函数（linear → sRGB gamma）两步进入 sRGB。后续 AI 模型训练数据均为 sRGB，全程 sRGB 工作。
 
-`save_image()` 有一个安全网：如果传入的 `ImageData` 仍然是 LINEAR（正常流程不应该出现，但防御性编程），会自动调用 `to_srgb()` 转换后再保存。
+## 处理器状态总表
 
-当前统一输出 8-bit RGB。16-bit TIFF/PNG 输出待后续实现。
+| order | 处理器 | 文件 | 核心函数 | 格式 | 状态 |
+|-------|--------|------|----------|------|------|
+| 5 | lens_correct | `processors/lens_correct.py` | `_apply_corrections()` | RAW | ✅ 已实现 |
+| 10 | raw_develop | `processors/raw_develop.py` | `_compute_auto_ev()`, `_hable_filmic()` | RAW | 🔧 需确认 |
+| 11 | exposure_adjust | `processors/exposure_adjust.py` | `_mild_exposure_adjust()` | JPG/HEIF/PNG/TIFF | ✅ 已实现 |
+| 20 | denoise | `processors/denoise.py` | — | any | 🔲 未实现 |
+| 30 | horizon | `processors/horizon.py` | — | any | 🔲 未实现 |
+| 40 | white_balance | `processors/white_balance.py` | — | any | 🔲 未实现 |
+| 50 | color_grade | `processors/color_grade.py` | — | any | 🔲 未实现 |
+| 60 | auto_crop | `processors/auto_crop.py` | — | any | 🔲 未实现 |
+| 70 | super_res | `processors/super_res.py` | — | any | 🔲 未实现（不在默认步骤） |
+| 80 | content_remove | `processors/content_remove.py` | — | any | 🔲 未实现（不在默认步骤） |
 
+状态说明：✅ 已实现，不需修改 ｜ 🔧 已实现，需未来确认/调整 ｜ 🔲 未实现
+
+## 导出
+
+`io.save_image()` 控制最终输出：
+
+| 维度 | 选项 | 控制位置 |
+|------|------|----------|
+| **色域** | sRGB（Web）、AdobeRGB（印刷）、ProPhoto（归档） | `save_image()` 参数 / `shotline.toml [output]` |
+| **编码** | sRGB gamma、gamma 1.8、linear | 由色域隐含决定 |
+| **格式** | JPEG（8-bit）、TIFF（8/16-bit）、PNG（8/16-bit） | `shotline.toml [output] format` |
+| **位深** | 8-bit（JPEG）、16-bit（TIFF/PNG 归档） | 由格式决定 |
+
+当前实现：统一输出 sRGB 8-bit JPEG。其他组合待后续实现。
