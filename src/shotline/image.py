@@ -54,11 +54,11 @@ class ImageData:
 
     @property
     def height(self) -> int:
-        return self.data.shape[0]
+        return int(self.data.shape[0])
 
     @property
     def width(self) -> int:
-        return self.data.shape[1]
+        return int(self.data.shape[1])
 
     @property
     def is_linear(self) -> bool:

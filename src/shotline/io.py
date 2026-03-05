@@ -56,7 +56,7 @@ def _init_rawpy_maps() -> None:
     """Lazily populate enum maps on first RAW load."""
     if _DEMOSAIC_MAP:
         return
-    import rawpy
+    import rawpy  # type: ignore[import-untyped]
 
     for member in rawpy.DemosaicAlgorithm:
         _DEMOSAIC_MAP[member.name.upper()] = member.value
@@ -311,14 +311,14 @@ def _load_raw(path: Path, raw_params: dict[str, Any] | None = None) -> ImageData
 
 def _load_heif(path: Path) -> ImageData:
     """Load HEIF/HEIC as sRGB. Detects 10-bit iPhone photos."""
-    import pillow_heif
+    import pillow_heif  # type: ignore[import-untyped]
     from PIL import Image
 
     pillow_heif.register_heif_opener()
     img = Image.open(path)
     bit_depth = 10 if img.mode in ("I;16", "I;16L", "I;16B") else 8
-    img = img.convert("RGB")
-    data = np.array(img, dtype=np.float32) / 255.0
+    rgb_img = img.convert("RGB")
+    data = np.array(rgb_img, dtype=np.float32) / 255.0
     return ImageData(
         data=data,
         encoding=Encoding.SRGB,
@@ -341,8 +341,8 @@ def _load_standard(path: Path, fmt: str) -> ImageData:
         data = np.stack([arr] * 3, axis=-1) if arr.ndim == 2 else arr
     else:
         bit_depth = 8
-        img = img.convert("RGB")
-        data = np.array(img, dtype=np.float32) / 255.0
+        rgb_img = img.convert("RGB")
+        data = np.array(rgb_img, dtype=np.float32) / 255.0
 
     return ImageData(
         data=data.astype(np.float32),

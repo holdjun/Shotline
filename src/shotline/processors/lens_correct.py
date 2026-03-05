@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @cache
 def _has_lensfunpy() -> bool:
     try:
-        import lensfunpy  # noqa: F401
+        import lensfunpy  # type: ignore[import-untyped]  # noqa: F401
 
         return True
     except ImportError:
@@ -227,7 +227,7 @@ def _apply_corrections(
             remap_coords = mod.apply_subpixel_geometry_distortion()
             if remap_coords is not None:
                 for ch in range(3):
-                    result[..., ch] = cv2.remap(
+                    result[..., ch] = cv2.remap(  # type: ignore[call-overload]
                         result[..., ch],
                         remap_coords[..., ch, :],
                         None,
@@ -240,7 +240,10 @@ def _apply_corrections(
             # Distortion only (no TCA)
             remap_coords = mod.apply_geometry_distortion()
             if remap_coords is not None:
-                result = cv2.remap(result, remap_coords, None, cv2.INTER_LANCZOS4)
+                # opencv stubs don't model single-map mode (map1=(x,y), map2=None)
+                result = cv2.remap(  # type: ignore[call-overload]
+                    result, remap_coords, None, cv2.INTER_LANCZOS4
+                )
                 applied["distortion"] = True
 
     # 3. Auto-crop black borders from geometric correction
