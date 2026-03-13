@@ -9,10 +9,8 @@ Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 ```bash
 git clone https://github.com/holdjun/Shotline.git
 cd Shotline
-uv sync                 # core
-uv sync --extra dev     # + dev tools & lens correction
+uv sync                 # core + dev tools
 uv sync --extra ai      # + AI models
-uv sync --extra all     # everything
 ```
 
 ## Usage
@@ -43,11 +41,6 @@ Config: `shotline.toml`, override with `shotline run photo.arw -c my_config.toml
 
 Technical documentation and architecture details live under [`docs/`](docs/).
 
-## Claude Code Skills
-
-- **`/setup`** — Configure GitHub repo settings
-- **`/submit`** — Code-to-PR workflow (lint, test, review, push, create PR, monitor CI)
-
 ## License
 
-MIT
+[AGPL-3.0](LICENSE)

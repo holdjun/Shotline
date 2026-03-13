@@ -68,7 +68,7 @@ shotline models download all                     # 下载模型
 
 - **核心**: typer, rich, pydantic, numpy, Pillow, rawpy, pillow-heif
 - **[ai]**: torch, torchvision, opencv-python-headless, ultralytics
-- **[dev]**: pytest, pytest-cov, ruff, mypy
+- **[dev]**: pytest, pytest-cov, ruff, basedpyright
 
 ## 处理器技术选型
 
@@ -96,9 +96,9 @@ shotline models download all                     # 下载模型
 ## 验证
 
 ```bash
-pip install -e ".[dev]"
+uv sync
 shotline list                    # 列出 9 个处理器
 shotline run test.jpg -o out.jpg # stub pipeline 跑通
-pytest                           # 测试通过
-ruff check src/ tests/           # lint 通过
+uv run pytest                    # 测试通过
+uv run ruff check src/ tests/   # lint 通过
 ```

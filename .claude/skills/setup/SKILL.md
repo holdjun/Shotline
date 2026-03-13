@@ -1,3 +1,9 @@
+---
+name: setup
+description: Use when configuring GitHub repo settings, branch protection, merge strategy, or Actions permissions.
+disable-model-invocation: true
+---
+
 # Setup
 
 Configure GitHub repository settings. Idempotent — safe to re-run.
@@ -26,7 +32,7 @@ if [ -f .github/workflows/ci.yml ]; then
     "strict": true,
     "contexts": ["ci"]
   },
-  "enforce_admins": true,
+  "enforce_admins": false,
   "required_pull_request_reviews": null,
   "restrictions": null
 }
@@ -37,7 +43,7 @@ else
     --input - <<'EOF'
 {
   "required_status_checks": null,
-  "enforce_admins": true,
+  "enforce_admins": false,
   "required_pull_request_reviews": null,
   "restrictions": null
 }
@@ -64,15 +70,29 @@ gh api repos/{owner}/{repo} \
 
 If 403: inform the user and skip.
 
-### 4. Summary
+### 4. Configure Actions Permissions
+
+Allow GitHub Actions to create PRs (required by Release Please):
+
+```bash
+gh api repos/{owner}/{repo}/actions/permissions/workflow \
+  -X PUT \
+  -f default_workflow_permissions=write \
+  -F can_approve_pull_request_reviews=true
+```
+
+If 403: inform the user and skip.
+
+### 5. Summary
 
 Print what was configured:
 
 ```
 Setup complete:
   ✓ Repository: {owner}/{repo}
-  ✓ Branch protection: main (CI required, enforce admins)
+  ✓ Branch protection: main (CI required, admin can bypass for release PRs)
   ✓ Merge strategy: squash only, auto-delete branches
+  ✓ Actions permissions: can create PRs (for Release Please)
 
 Ready to develop:
   git fetch origin main

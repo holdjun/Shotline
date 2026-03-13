@@ -227,10 +227,10 @@ def _apply_corrections(
             remap_coords = mod.apply_subpixel_geometry_distortion()
             if remap_coords is not None:
                 for ch in range(3):
-                    result[..., ch] = cv2.remap(  # type: ignore[call-overload]
+                    result[..., ch] = cv2.remap(  # pyright: ignore[reportCallIssue]
                         result[..., ch],
                         remap_coords[..., ch, :],
-                        None,
+                        None,  # pyright: ignore[reportArgumentType]
                         cv2.INTER_LANCZOS4,
                     )
                 applied["tca"] = True
@@ -241,9 +241,7 @@ def _apply_corrections(
             remap_coords = mod.apply_geometry_distortion()
             if remap_coords is not None:
                 # opencv stubs don't model single-map mode (map1=(x,y), map2=None)
-                result = cv2.remap(  # type: ignore[call-overload]
-                    result, remap_coords, None, cv2.INTER_LANCZOS4
-                )
+                result = cv2.remap(result, remap_coords, None, cv2.INTER_LANCZOS4)  # pyright: ignore[reportCallIssue, reportArgumentType]
                 applied["distortion"] = True
 
     # 3. Auto-crop black borders from geometric correction

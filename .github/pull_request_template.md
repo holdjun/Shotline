@@ -20,6 +20,7 @@
 ## Checklist
 
 - [ ] Code follows project conventions
-- [ ] Tests pass
-- [ ] Build succeeds
+- [ ] Tests pass (`uv run pytest`)
+- [ ] Lint/format pass (`uv run ruff check src/ && uv run ruff format --check src/`)
+- [ ] Type check pass (`uv run basedpyright src/`)
 - [ ] No secrets or debug output committed

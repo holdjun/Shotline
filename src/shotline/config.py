@@ -55,6 +55,6 @@ def load_config(path: Path | None = None) -> PipelineConfig:
 
 
 def _parse_toml(path: Path) -> PipelineConfig:
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         data = tomllib.load(f)
     return PipelineConfig.model_validate(data)
