@@ -19,5 +19,5 @@ class WhiteBalanceProcessor(BaseProcessor):
             supported_inputs=["any"],
         )
 
-    def process(self, image: ImageData, params: dict[str, Any] | None = None) -> ImageData:
+    def process(self, image: ImageData, params: dict[str, Any] | None = None) -> ImageData:  # noqa: ARG002
         return image.replace(metadata={"white_balance": {"stub": True}})

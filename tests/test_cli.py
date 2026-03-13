@@ -56,7 +56,7 @@ def test_run_with_steps(sample_jpg: Path, tmp_path: Path):
     assert out.exists()
 
 
-def test_run_directory(sample_jpg: Path, tmp_path: Path):
+def test_run_directory(sample_jpg: Path, tmp_path: Path):  # noqa: ARG001
     import numpy as np
     from PIL import Image
 

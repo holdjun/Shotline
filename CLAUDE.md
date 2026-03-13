@@ -11,6 +11,7 @@ A lightweight, automated photo processing tool that takes RAW files from camera 
 - **Elegant, efficient, concise** — code and docs must not be overcomplicated or redundant
 - **Leverage existing tools** — use MCP servers, skills, `gh` CLI, and established ecosystems; don't reinvent the wheel
 - **Convention over configuration** — follow project conventions; when in doubt, check `docs/`
+- **Minimal public API** — each function does one thing; only export when needed by CLI or other modules
 
 ## Domain Expertise
 
@@ -35,11 +36,13 @@ shotline.toml             # Default processing config
 ## Common Commands
 
 ```bash
-# Install     — uv sync --extra dev
+# Install     — uv sync
+# Test        — uv run pytest
+# Coverage    — uv run pytest --cov
 # Lint        — uv run ruff check src/ tests/
 # Format      — uv run ruff format src/ tests/
-# Test        — uv run pytest
-# Type check  — uv run mypy src/shotline/
+# Type check  — uv run basedpyright src/
+# Pre-commit  — uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/ && uv run basedpyright src/ && uv run pytest
 ```
 
 ## Key Rules
@@ -49,13 +52,31 @@ shotline.toml             # Default processing config
 3. **Never commit secrets** — no `.env` files, API keys, or tokens in git
 4. **No debug output in production code** — remove debug statements before committing
 5. **Every feature must include tests** — no PR without corresponding test coverage. Tests must guard real behavior, not exist for the sake of coverage. Don't test language mechanics (dict assignment, return types, key existence without value checks). Do test: correctness of domain logic, physical/mathematical direction of transforms, branch coverage for distinct code paths, degradation behavior. If a test would still pass with a broken implementation, it's worthless — delete it.
+6. **Don't create new abstractions or helper functions** unless called from 3+ places; prefer inlining simple logic (<5 lines)
 
-## Skills
+## Verification
 
-Project skills (invoked via `/skill-name`):
+Every change must pass before submitting:
 
-- **`/submit`** — Complete code-to-PR workflow. Handles branch management, quality checks, self-review, commit, push, PR creation, and CI monitoring. **All code submissions must use this skill.**
-- **`/setup`** — Configure GitHub repository settings (branch protection, merge strategy). Idempotent, safe to re-run.
+```bash
+uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/ && uv run basedpyright src/ && uv run pytest
+```
+
+| Task type | Done when |
+|-----------|-----------|
+| Bug fix | Regression test + all checks green |
+| New feature | Corresponding test file + all checks green |
+| Refactor | Existing tests unchanged + all checks green |
+| Docs | No broken links, no stale info |
+
+## Compact Instructions
+
+When compacting, preserve by priority:
+
+1. Architecture decisions (never summarize)
+2. Modified files and key changes
+3. Current verification status (pass/fail)
+4. Outstanding TODOs and rollback notes
 
 ## Documentation
 

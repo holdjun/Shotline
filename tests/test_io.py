@@ -373,13 +373,13 @@ def test_extract_exif_with_exifread(tmp_path: Path):
     dummy_file.write_bytes(b"\x00" * 100)
 
     mock_tags = {
-        "Image Make": MagicMock(__str__=lambda s: "Sony"),
-        "Image Model": MagicMock(__str__=lambda s: "ILCE-7M3"),
-        "EXIF LensMake": MagicMock(__str__=lambda s: "Sony"),
-        "EXIF LensModel": MagicMock(__str__=lambda s: "FE 24-70mm F2.8 GM"),
-        "EXIF FocalLength": MagicMock(__str__=lambda s: "35"),
-        "EXIF FNumber": MagicMock(__str__=lambda s: "28/10"),
-        "EXIF ISOSpeedRatings": MagicMock(__str__=lambda s: "400"),
+        "Image Make": MagicMock(__str__=lambda _: "Sony"),
+        "Image Model": MagicMock(__str__=lambda _: "ILCE-7M3"),
+        "EXIF LensMake": MagicMock(__str__=lambda _: "Sony"),
+        "EXIF LensModel": MagicMock(__str__=lambda _: "FE 24-70mm F2.8 GM"),
+        "EXIF FocalLength": MagicMock(__str__=lambda _: "35"),
+        "EXIF FNumber": MagicMock(__str__=lambda _: "28/10"),
+        "EXIF ISOSpeedRatings": MagicMock(__str__=lambda _: "400"),
     }
 
     mock_exifread = types.ModuleType("exifread")
@@ -405,10 +405,10 @@ def test_extract_exif_ratio_parsing(tmp_path: Path):
     dummy_file.write_bytes(b"\x00" * 100)
 
     mock_tags = {
-        "Image Make": MagicMock(__str__=lambda s: "Canon"),
-        "Image Model": MagicMock(__str__=lambda s: "EOS R5"),
-        "EXIF FocalLength": MagicMock(__str__=lambda s: "70/1"),
-        "EXIF FNumber": MagicMock(__str__=lambda s: "4"),
+        "Image Make": MagicMock(__str__=lambda _: "Canon"),
+        "Image Model": MagicMock(__str__=lambda _: "EOS R5"),
+        "EXIF FocalLength": MagicMock(__str__=lambda _: "70/1"),
+        "EXIF FNumber": MagicMock(__str__=lambda _: "4"),
     }
 
     mock_exifread = types.ModuleType("exifread")

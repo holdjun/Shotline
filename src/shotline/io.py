@@ -155,7 +155,7 @@ def _extract_exif(path: Path, raw: Any = None) -> dict[str, Any]:
     try:
         import exifread
 
-        with open(path, "rb") as f:
+        with path.open("rb") as f:
             tags = exifread.process_file(f, stop_tag="UNDEF", details=False)
 
         def _tag_str(key: str) -> str | None:

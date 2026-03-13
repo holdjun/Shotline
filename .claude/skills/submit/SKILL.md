@@ -1,8 +1,11 @@
+---
+name: submit
+description: Use when submitting code, creating a PR, pushing changes, or when user says "push it" or "ship it".
+---
+
 # Submit
 
 Complete code-to-PR workflow. Self-review, commit, push, and open a pull request.
-
-**All code submissions MUST go through this skill. No exceptions.**
 
 ## Steps
 

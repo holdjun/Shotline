@@ -30,7 +30,7 @@ class ExposureAdjustProcessor(BaseProcessor):
             supported_inputs=["jpg", "heif", "png", "tiff"],
         )
 
-    def process(self, image: ImageData, params: dict[str, Any] | None = None) -> ImageData:
+    def process(self, image: ImageData, params: dict[str, Any] | None = None) -> ImageData:  # noqa: ARG002
         adjusted = _mild_exposure_adjust(image.data)
         return image.replace(
             data=adjusted,

@@ -32,5 +32,5 @@ class HorizonProcessor(BaseProcessor):
         except ImportError:
             return ProcessorStatus.UNAVAILABLE
 
-    def process(self, image: ImageData, params: dict[str, Any] | None = None) -> ImageData:
+    def process(self, image: ImageData, params: dict[str, Any] | None = None) -> ImageData:  # noqa: ARG002
         return image.replace(metadata={"horizon": {"stub": True}})

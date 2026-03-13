@@ -1,15 +1,22 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "shotline"
 version = "0.1.0"
 description = "Photo processing pipeline CLI"
 readme = "README.md"
+license = "AGPL-3.0-only"
 requires-python = ">=3.11"
-license = "MIT"
-
+authors = [{ name = "holdjun" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Utilities",
+]
 dependencies = [
     "typer>=0.9",
     "rich>=13.0",
@@ -26,40 +33,75 @@ ai = [
     "torchvision>=0.15",
     "ultralytics>=8.0",
 ]
-dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "ruff>=0.1",
-    "mypy>=1.5",
-    "lensfunpy>=1.16",
-    "exifread>=3.0",
-    "opencv-python-headless>=4.8",
-]
-all = ["shotline[ai,dev]"]
+
+[project.urls]
+Homepage = "https://github.com/holdjun/shotline"
+Repository = "https://github.com/holdjun/shotline"
+Issues = "https://github.com/holdjun/shotline/issues"
 
 [project.scripts]
 shotline = "shotline.cli:main"
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/shotline"]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "basedpyright>=1.20",
+    "lensfunpy>=1.16",
+    "exifread>=3.0",
+    "opencv-python-headless>=4.8",
+    "colour-science>=0.4.7",
+]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "B",
+    "C4",
+    "UP",
+    "ARG",
+    "SIM",
+    "TC",
+    "PTH",
+    "ERA",
+    "RUF",
+]
+ignore = ["E501", "RUF001", "TC001", "TC003"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["shotline"]
+
+[tool.basedpyright]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+reportAttributeAccessIssue = "warning"
+reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
 markers = ["slow: marks tests that require real image files (deselect with '-m \"not slow\"')"]
 
-[tool.mypy]
-python_version = "3.11"
-strict = true
+[tool.coverage.run]
+source = ["src/shotline"]
+branch = true
 
-[dependency-groups]
-dev = [
-    "colour-science>=0.4.7",
-]
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
