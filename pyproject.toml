@@ -21,17 +21,17 @@ dependencies = [
     "typer>=0.9",
     "rich>=13.0",
     "pydantic>=2.0",
-    "numpy>=1.24",
+    "numpy>=2.4.4",
     "Pillow>=10.0",
     "rawpy>=0.19",
-    "pillow-heif>=0.13",
+    "pillow>=12.2.0",
 ]
 
 [project.optional-dependencies]
 ai = [
-    "torch>=2.0",
+    "torch>=2.11.0",
     "torchvision>=0.15",
-    "ultralytics>=8.0",
+    "ultralytics>=8.4.37",
 ]
 
 [project.urls]
@@ -51,10 +51,10 @@ packages = ["src/shotline"]
 
 [dependency-groups]
 dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "ruff>=0.1",
-    "basedpyright>=1.20",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.10",
+    "basedpyright>=1.39.0",
     "lensfunpy>=1.16",
     "exifread>=3.0",
     "opencv-python-headless>=4.8",
